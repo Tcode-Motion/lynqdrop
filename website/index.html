@@ -1,0 +1,517 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>LynqDrop - Fast Private File Sharing</title>
+  <meta name="description" content="LynqDrop is an open-source, cross-platform local file sharing application. Send files, folders, and messages across Android, Windows, macOS, Linux, and any web browser with zero configuration and no cloud storage.">
+  <meta name="keywords" content="file sharing, local file sharing, Wi-Fi file transfer, Android file transfer, Windows file transfer, browser file sharing, device-to-device transfer, QR file sharing, LynqDrop">
+  <link rel="canonical" href="https://lynqdrop.web.app/">
+
+  <!-- Open Graph / Facebook -->
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="https://lynqdrop.web.app/">
+  <meta property="og:title" content="LynqDrop - Fast Private File Sharing">
+  <meta property="og:description" content="Fast, secure, local file sharing for any device — with no-install browser transfer. Zero accounts, zero cloud reliance.">
+  <meta property="og:image" content="https://lynqdrop.web.app/assets/lynqdrop_horizontal.png">
+
+  <!-- Twitter -->
+  <meta property="twitter:card" content="summary_large_image">
+  <meta property="twitter:url" content="https://lynqdrop.web.app/">
+  <meta property="twitter:title" content="LynqDrop - Fast Private File Sharing">
+  <meta property="twitter:description" content="Fast, secure, local file sharing for any device — with no-install browser transfer.">
+  <meta property="twitter:image" content="https://lynqdrop.web.app/assets/lynqdrop_horizontal.png">
+
+  <!-- Favicon & PWA -->
+  <link rel="icon" type="image/x-icon" href="./assets/logo.ico">
+  <link rel="icon" type="image/png" sizes="32x32" href="./assets/logo-32.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="./assets/logo-16.png">
+  <link rel="apple-touch-icon" sizes="180x180" href="./assets/logo-256.png">
+  <link rel="manifest" href="./manifest.webmanifest">
+  <meta name="theme-color" content="#0a0f1d">
+
+  <link rel="stylesheet" href="./style.css">
+
+  <!-- Structured Data -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "SoftwareApplication",
+    "name": "LynqDrop",
+    "operatingSystem": "Android, Windows, macOS, Linux, Web",
+    "applicationCategory": "UtilitiesApplication",
+    "offers": {
+      "@type": "Offer",
+      "price": "0",
+      "priceCurrency": "USD"
+    },
+    "description": "Fast, private, local file sharing for Android, desktop, and web browsers with zero cloud reliance."
+  }
+  </script>
+</head>
+<body>
+
+  <!-- Site Navigation -->
+  <header class="site-header">
+    <div class="container nav-wrap">
+      <a href="#" class="logo-link">
+        <img src="./assets/logo-128.png" alt="LynqDrop Logo" class="logo-img">
+        <span>LynqDrop</span>
+      </a>
+      <ul class="nav-links">
+        <li><a href="#features">Features</a></li>
+        <li><a href="#how-it-works">How It Works</a></li>
+        <li><a href="#browser-share">Browser Share</a></li>
+        <li><a href="#security">Security</a></li>
+        <li><a href="#download">Download</a></li>
+        <li><a href="#faq">FAQ</a></li>
+      </ul>
+      <div class="nav-actions">
+        <button id="theme-toggle-btn" class="theme-btn" aria-label="Toggle Dark/Light Mode" title="Toggle Theme">
+          <svg id="theme-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"></path></svg>
+        </button>
+        <a href="#download" class="btn-primary">Get LynqDrop</a>
+      </div>
+    </div>
+  </header>
+
+  <main>
+    <!-- Hero Section -->
+    <section class="hero">
+      <div class="container">
+        <div class="badge-pill">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path></svg>
+          <span>100% Local · No Cloud · Zero Accounts</span>
+        </div>
+        <h1>Send Anything. Anywhere.<br><span class="gradient-text">Fast, Private Local File Sharing.</span></h1>
+        <p class="hero-sub">
+          LynqDrop lets you transfer files, folders, and text directly between devices over your local Wi-Fi at line speed — plus instant sharing to any device through a web browser with <strong>zero installation</strong>.
+        </p>
+        <div class="hero-cta">
+          <a href="#download" class="btn-primary" style="padding: 14px 30px; font-size: 1.05rem;">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+            Download Free
+          </a>
+          <a href="#browser-share" class="btn-secondary" style="padding: 14px 26px; font-size: 1.05rem;">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><line x1="2" y1="12" x2="22" y2="12"></line><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path></svg>
+            See Browser Share
+          </a>
+        </div>
+
+        <!-- Interactive Mockup Stage -->
+        <div class="preview-stage">
+          <div class="mockup-grid">
+            <div class="mockup-card">
+              <div class="mockup-header">
+                <div class="mockup-title">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="2" width="20" height="8" rx="2" ry="2"></rect><rect x="2" y="14" width="20" height="8" rx="2" ry="2"></ry><line x1="6" y1="6" x2="6.01" y2="6"></line><line x1="6" y1="18" x2="6.01" y2="18"></line></svg>
+                  <span>Nearby Devices (LAN)</span>
+                </div>
+                <span style="font-size: 12px; color: var(--accent-cyan); font-weight: 700;">Scanning...</span>
+              </div>
+              <div class="device-item">
+                <div class="device-info">
+                  <div class="device-dot"></div>
+                  <div>
+                    <div style="font-weight: 700;">Pixel 9 Pro (Living Room)</div>
+                    <div style="font-size: 12px; color: var(--text-secondary);">Android · 192.168.1.42</div>
+                  </div>
+                </div>
+                <button class="btn-primary" style="padding: 6px 14px; font-size: 12px;">Send</button>
+              </div>
+              <div class="device-item">
+                <div class="device-info">
+                  <div class="device-dot"></div>
+                  <div>
+                    <div style="font-weight: 700;">Workstation Desktop</div>
+                    <div style="font-size: 12px; color: var(--text-secondary);">Windows 11 · 192.168.1.108</div>
+                  </div>
+                </div>
+                <button class="btn-primary" style="padding: 6px 14px; font-size: 12px;">Send</button>
+              </div>
+              <div class="device-item">
+                <div class="device-info">
+                  <div class="device-dot"></div>
+                  <div>
+                    <div style="font-weight: 700;">MacBook Air M3</div>
+                    <div style="font-size: 12px; color: var(--text-secondary);">macOS · 192.168.1.77</div>
+                  </div>
+                </div>
+                <button class="btn-primary" style="padding: 6px 14px; font-size: 12px;">Send</button>
+              </div>
+            </div>
+
+            <div class="mockup-card">
+              <div class="mockup-header">
+                <div class="mockup-title">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg>
+                  <span>Zero-Install Browser Sharing</span>
+                </div>
+                <span class="badge-pill" style="margin: 0; padding: 2px 10px; font-size: 11px;">Active</span>
+              </div>
+              <p style="font-size: 13px; color: var(--text-secondary); margin-bottom: 14px;">
+                Anyone on your Wi-Fi can scan this QR code with their phone camera to download or upload files immediately in their browser:
+              </p>
+              <div style="text-align: center; padding: 12px; background: rgba(0,0,0,0.25); border-radius: 12px; border: 1px dashed var(--border-color); margin-bottom: 12px;">
+                <div style="font-family: monospace; font-size: 13px; color: var(--accent-cyan); font-weight: 700;">http://192.168.1.42:53317</div>
+                <div style="font-size: 11px; color: var(--text-muted); margin-top: 4px;">Protected by ephemeral session PIN</div>
+              </div>
+              <div style="display: flex; gap: 8px; justify-content: center;">
+                <span style="font-size: 12px; color: var(--text-secondary);">✓ Safari</span>
+                <span style="font-size: 12px; color: var(--text-secondary);">✓ Chrome</span>
+                <span style="font-size: 12px; color: var(--text-secondary);">✓ Edge</span>
+                <span style="font-size: 12px; color: var(--text-secondary);">✓ Firefox</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Features Section -->
+    <section id="features" class="section" style="background: var(--bg-secondary);">
+      <div class="container">
+        <div class="section-title">
+          <h2>Engineered for Speed, Built for Privacy</h2>
+          <p>Everything you need for seamless cross-platform sharing without surveillance or subscriptions.</p>
+        </div>
+        <div class="grid-3">
+          <div class="feature-card">
+            <div class="feature-icon">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon></svg>
+            </div>
+            <h3>Line-Speed LAN Transfers</h3>
+            <p>Transfers stream directly peer-to-peer across your local Wi-Fi or Ethernet at up to hundreds of megabytes per second. No cloud bottlenecks or artificial speed limits.</p>
+          </div>
+
+          <div class="feature-card">
+            <div class="feature-icon">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><line x1="2" y1="12" x2="22" y2="12"></line><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path></svg>
+            </div>
+            <h3>Zero-Install Browser Sharing</h3>
+            <p>Share with friends or coworkers who don't have LynqDrop installed. They simply scan a QR code with their camera and download or upload files straight in their web browser.</p>
+          </div>
+
+          <div class="feature-card">
+            <div class="feature-icon">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12.55a11 11 0 0 1 14.08 0"></path><path d="M1.42 9a16 16 0 0 1 21.16 0"></path><path d="M8.53 16.11a6 6 0 0 1 6.95 0"></path><line x1="12" y1="20" x2="12.01" y2="20"></line></svg>
+            </div>
+            <h3>Hotspot Broadcast Discovery</h3>
+            <p>Unlike standard mDNS tools that fail on mobile hotspots, LynqDrop includes UDP broadcast fallbacks so devices discover each other effortlessly even when tethering in the field.</p>
+          </div>
+
+          <div class="feature-card">
+            <div class="feature-icon">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>
+            </div>
+            <h3>End-to-End Local Security</h3>
+            <p>Every session uses ephemeral TLS 1.3 self-signed certificates. Your data never touches a remote server, third-party database, or advertising network.</p>
+          </div>
+
+          <div class="feature-card">
+            <div class="feature-icon">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path></svg>
+            </div>
+            <h3>Folders &amp; Gigabyte Files</h3>
+            <p>Stream individual files, full directory hierarchies, or 50GB videos without memory exhaustion or crash loops. True streaming chunk architecture handles any file size.</p>
+          </div>
+
+          <div class="feature-card">
+            <div class="feature-icon">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"></line></svg>
+            </div>
+            <h3>Zero Ads, Zero Telemetry</h3>
+            <p>No analytics trackers, no advertising SDKs, no registration, and no premium paywalls. 100% transparent, free, open-source software under the Apache 2.0 license.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- How It Works Flow -->
+    <section id="how-it-works" class="section">
+      <div class="container">
+        <div class="section-title">
+          <h2>How It Works</h2>
+          <p>Transferring files between devices takes seconds, with or without the app.</p>
+        </div>
+
+        <div class="flow-steps">
+          <div class="step-box">
+            <div class="step-num">1</div>
+            <h4 style="margin-bottom: 8px;">Pick Your Files</h4>
+            <p style="font-size: 0.9rem; color: var(--text-secondary);">Select files, complete folders, photos, videos, or paste text and clipboard contents.</p>
+          </div>
+
+          <div class="step-box">
+            <div class="step-num">2</div>
+            <h4 style="margin-bottom: 8px;">Select Recipient</h4>
+            <p style="font-size: 0.9rem; color: var(--text-secondary);">Tap an auto-discovered nearby device, or choose <em>"Share through browser"</em>.</p>
+          </div>
+
+          <div class="step-box">
+            <div class="step-num">3</div>
+            <h4 style="margin-bottom: 8px;">Instant Connect</h4>
+            <p style="font-size: 0.9rem; color: var(--text-secondary);">Auto-negotiate peer TLS or scan the displayed pairing QR code with any camera.</p>
+          </div>
+
+          <div class="step-box">
+            <div class="step-num">4</div>
+            <h4 style="margin-bottom: 8px;">Line-Speed Transfer</h4>
+            <p style="font-size: 0.9rem; color: var(--text-secondary);">Files stream directly over your local Wi-Fi with live progress and real-time speed metrics.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Browser Sharing Deep Dive -->
+    <section id="browser-share" class="section" style="background: var(--bg-secondary);">
+      <div class="container">
+        <div class="mockup-grid">
+          <div>
+            <div class="badge-pill">Zero Install Differentiator</div>
+            <h2 style="font-size: 2.3rem; margin-bottom: 16px; letter-spacing: -0.5px;">Share with Anyone.<br>Even without the App.</h2>
+            <p style="color: var(--text-secondary); margin-bottom: 20px; font-size: 1.05rem;">
+              Need to send a video to someone who doesn't have LynqDrop? Don't make them download an app or register an account.
+            </p>
+            <ul style="list-style: none; color: var(--text-secondary); margin-bottom: 28px;">
+              <li style="margin-bottom: 12px; display: flex; align-items: center; gap: 10px;">
+                <span style="color: #10b981; font-weight: 700;">✓</span>
+                <span><strong>No App Required:</strong> Works on standard mobile Safari, Chrome, Firefox, and Edge.</span>
+              </li>
+              <li style="margin-bottom: 12px; display: flex; align-items: center; gap: 10px;">
+                <span style="color: #10b981; font-weight: 700;">✓</span>
+                <span><strong>Two-Way Sharing:</strong> Recipients can download shared files OR drag-and-drop to upload files back to you.</span>
+              </li>
+              <li style="margin-bottom: 12px; display: flex; align-items: center; gap: 10px;">
+                <span style="color: #10b981; font-weight: 700;">✓</span>
+                <span><strong>Session PIN Guard:</strong> Prevent unauthorized access with random session tokens and optional numeric PINs.</span>
+              </li>
+            </ul>
+            <a href="#download" class="btn-primary">Try It with LynqDrop</a>
+          </div>
+
+          <div class="mockup-card" style="box-shadow: var(--shadow-lg);">
+            <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 16px;">
+              <div style="width: 10px; height: 10px; border-radius: 50%; background: #ef4444;"></div>
+              <div style="width: 10px; height: 10px; border-radius: 50%; background: #f59e0b;"></div>
+              <div style="width: 10px; height: 10px; border-radius: 50%; background: #10b981;"></div>
+              <span style="font-size: 12px; color: var(--text-muted); margin-left: 10px;">Mobile Safari &middot; 192.168.1.42:53317</span>
+            </div>
+            <div style="background: rgba(0,0,0,0.3); border-radius: 12px; padding: 20px; text-align: center;">
+              <img src="./assets/logo-128.png" alt="LynqDrop Logo" style="width: 48px; height: 48px; border-radius: 10px; margin-bottom: 8px;">
+              <div style="font-weight: 800; font-size: 18px;">LynqDrop Web Share</div>
+              <div style="font-size: 12px; color: #10b981; margin-bottom: 16px;">● Ready to Receive</div>
+              <div style="background: rgba(255,255,255,0.05); border: 1px dashed var(--border-color); border-radius: 10px; padding: 24px 12px;">
+                <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="color: var(--accent-cyan); margin-bottom: 8px;"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
+                <div style="font-weight: 700; font-size: 14px;">Drag files here or tap to choose</div>
+                <div style="font-size: 12px; color: var(--text-muted); margin-top: 4px;">Direct LAN upload to host device</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Downloads Section -->
+    <section id="download" class="section">
+      <div class="container">
+        <div class="section-title">
+          <h2>Get LynqDrop for Your Devices</h2>
+          <p>Native performance across mobile and desktop. Choose your platform below.</p>
+        </div>
+
+        <div class="download-grid">
+          <!-- Android -->
+          <div class="platform-card">
+            <div class="platform-icon">🤖</div>
+            <span class="platform-badge badge-ready">Ready</span>
+            <h3>Android</h3>
+            <p style="font-size: 0.9rem; color: var(--text-secondary); margin-bottom: 20px;">Android 5.0+ (Optimized for Android 14/15/16). APK &amp; Play Store release.</p>
+            <a id="download-android-btn" href="https://github.com/Tcode-Motion/lynqdrop/releases/latest/download/lynqdrop-v1.0.0-android.apk" class="btn-primary" style="width: 100%; justify-content: center;">
+              Download APK
+            </a>
+          </div>
+
+          <!-- Windows -->
+          <div class="platform-card">
+            <div class="platform-icon">🪟</div>
+            <span class="platform-badge badge-ready">Ready</span>
+            <h3>Windows</h3>
+            <p style="font-size: 0.9rem; color: var(--text-secondary); margin-bottom: 20px;">Windows 10 &amp; 11 (64-bit). Tray integration, startup auto-run, and native notifications.</p>
+            <a id="download-windows-btn" href="https://github.com/Tcode-Motion/lynqdrop/releases/latest/download/lynqdrop-v1.0.0-windows.zip" class="btn-primary" style="width: 100%; justify-content: center;">
+              Download ZIP
+            </a>
+          </div>
+
+          <!-- macOS -->
+          <div class="platform-card">
+            <div class="platform-icon">🍎</div>
+            <span class="platform-badge badge-ready">Ready</span>
+            <h3>macOS</h3>
+            <p style="font-size: 0.9rem; color: var(--text-secondary); margin-bottom: 20px;">macOS 11 Big Sur+. Universal binary supporting Apple Silicon (M1/M2/M3/M4) &amp; Intel.</p>
+            <a id="download-macos-btn" href="https://github.com/Tcode-Motion/lynqdrop/releases/latest" class="btn-secondary" style="width: 100%; justify-content: center;">
+              Download DMG
+            </a>
+          </div>
+
+          <!-- Linux -->
+          <div class="platform-card">
+            <div class="platform-icon">🐧</div>
+            <span class="platform-badge badge-ready">Ready</span>
+            <h3>Linux</h3>
+            <p style="font-size: 0.9rem; color: var(--text-secondary); margin-bottom: 20px;">AppImage, Flatpak, and Tarball. Integrates with XDG Desktop Portal.</p>
+            <a id="download-linux-btn" href="https://github.com/Tcode-Motion/lynqdrop/releases/latest" class="btn-secondary" style="width: 100%; justify-content: center;">
+              Download AppImage
+            </a>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Security & Privacy -->
+    <section id="security" class="section" style="background: var(--bg-secondary);">
+      <div class="container">
+        <div class="section-title">
+          <h2>Security by Architecture</h2>
+          <p>We believe privacy is an architectural invariant, not a marketing promise.</p>
+        </div>
+
+        <div class="grid-3">
+          <div class="feature-card">
+            <h3>Ephemeral TLS Encryption</h3>
+            <p>Every LynqDrop session generates fresh in-memory self-signed X.509 certificates. Your files are encrypted across the airwaves using modern TLS 1.3 ciphers.</p>
+          </div>
+
+          <div class="feature-card">
+            <h3>Strict Local Boundary</h3>
+            <p>All data travels strictly over your local network interfaces. Files are never stored in a third-party cloud, relay buffer, or external server.</p>
+          </div>
+
+          <div class="feature-card">
+            <h3>No Unnecessary Permissions</h3>
+            <p>LynqDrop never requests audio recording, contacts, SMS, or broad package scanning permissions. Storage access follows modern Scoped Storage guidelines.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- FAQ Accordion -->
+    <section id="faq" class="section">
+      <div class="container">
+        <div class="section-title">
+          <h2>Frequently Asked Questions</h2>
+          <p>Everything you need to know about LynqDrop and how it works.</p>
+        </div>
+
+        <div class="faq-list">
+          <div class="faq-item">
+            <button class="faq-question">
+              <span>Do both devices need LynqDrop installed?</span>
+              <span class="faq-toggle">+</span>
+            </button>
+            <div class="faq-answer">
+              No! For the best experience, both devices can use the LynqDrop native app, but you can also use <strong>Browser Sharing</strong>: simply start a web session on LynqDrop and share the QR code or URL. The other person can download or upload files through Safari, Chrome, Firefox, or Edge without installing anything.
+            </div>
+          </div>
+
+          <div class="faq-item">
+            <button class="faq-question">
+              <span>Does LynqDrop require an internet connection?</span>
+              <span class="faq-toggle">+</span>
+            </button>
+            <div class="faq-answer">
+              No. LynqDrop operates purely over your local area network (LAN), Wi-Fi router, or mobile hotspot. You can transfer files in offline environments such as flights, subways, and remote locations with zero internet connectivity.
+            </div>
+          </div>
+
+          <div class="faq-item">
+            <button class="faq-question">
+              <span>Is there a file size limit?</span>
+              <span class="faq-toggle">+</span>
+            </button>
+            <div class="faq-answer">
+              There is no file size limit! LynqDrop uses streaming I/O architecture. Files are read directly from storage in chunks and streamed over the network socket without loading the whole file into RAM.
+            </div>
+          </div>
+
+          <div class="faq-item">
+            <button class="faq-question">
+              <span>Does LynqDrop work on portable phone hotspots?</span>
+              <span class="faq-toggle">+</span>
+            </button>
+            <div class="faq-answer">
+              Yes. Many Android phone hotspots drop multicast DNS packets, which breaks traditional discovery tools. LynqDrop solves this by including a UDP hotspot broadcast fallback engine that pings the broadcast address directly.
+            </div>
+          </div>
+
+          <div class="faq-item">
+            <button class="faq-question">
+              <span>Is LynqDrop really free and open source?</span>
+              <span class="faq-toggle">+</span>
+            </button>
+            <div class="faq-answer">
+              Yes, 100%. LynqDrop is licensed under the Apache License 2.0. It contains no advertisements, no tracking, no telemetry, and no paid features.
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- Site Footer -->
+  <footer class="site-footer">
+    <div class="container">
+      <div class="footer-grid">
+        <div class="footer-col">
+          <div class="logo-link" style="margin-bottom: 14px;">
+            <img src="./assets/logo-128.png" alt="LynqDrop Logo" class="logo-img">
+            <span>LynqDrop</span>
+          </div>
+          <p style="font-size: 0.9rem; max-width: 320px; margin-bottom: 16px;">
+            Fast, secure, local file sharing for any device — with no-install browser transfer.
+          </p>
+          <p style="font-size: 0.8rem; color: var(--text-muted);">
+            Licensed under Apache 2.0.
+          </p>
+        </div>
+
+        <div class="footer-col">
+          <h4>Product</h4>
+          <ul class="footer-links">
+            <li><a href="#features">Features</a></li>
+            <li><a href="#how-it-works">How It Works</a></li>
+            <li><a href="#browser-share">Browser Share</a></li>
+            <li><a href="#download">Downloads</a></li>
+          </ul>
+        </div>
+
+        <div class="footer-col">
+          <h4>Resources</h4>
+          <ul class="footer-links">
+            <li><a href="https://github.com/Tcode-Motion/lynqdrop" target="_blank" rel="noopener noreferrer">GitHub Repository</a></li>
+            <li><a href="#security">Security Model</a></li>
+            <li><a href="#faq">FAQ</a></li>
+            <li><a href="https://github.com/Tcode-Motion/lynqdrop/releases" target="_blank" rel="noopener noreferrer">Releases</a></li>
+          </ul>
+        </div>
+
+        <div class="footer-col">
+          <h4>Legal</h4>
+          <ul class="footer-links">
+            <li><a href="#security">Privacy Policy</a></li>
+            <li><a href="https://github.com/Tcode-Motion/lynqdrop/blob/main/LICENSE" target="_blank" rel="noopener noreferrer">Apache 2.0 License</a></li>
+            <li><a href="https://github.com/Tcode-Motion/lynqdrop/blob/main/docs/ATTRIBUTION.md" target="_blank" rel="noopener noreferrer">Attribution</a></li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="footer-bottom">
+        <div>&copy; 2026 LynqDrop Contributors. Open source under Apache-2.0.</div>
+        <div>Send Anything. Anywhere.</div>
+      </div>
+    </div>
+  </footer>
+
+  <script src="./app.js"></script>
+</body>
+</html>
