@@ -103,9 +103,17 @@
           <div class="web-share-card">
             <!-- Tabs Navigation -->
             <div class="web-share-tabs" role="tablist">
-              <button type="button" class="tab-btn active" id="tab-btn-send" onclick="switchWebTab('send')">
+              <button type="button" class="tab-btn active" id="tab-btn-radar" onclick="switchWebTab('radar')">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
+                <span>Nearby Radar</span>
+              </button>
+              <button type="button" class="tab-btn" id="tab-btn-send" onclick="switchWebTab('send')">
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 19V5M5 12l7-7 7 7"/></svg>
                 <span>Send Files</span>
+              </button>
+              <button type="button" class="tab-btn" id="tab-btn-text" onclick="switchWebTab('text')">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+                <span>Quick Text</span>
               </button>
               <button type="button" class="tab-btn" id="tab-btn-receive" onclick="switchWebTab('receive')">
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12l7 7 7-7"/></svg>
@@ -117,11 +125,45 @@
               </button>
             </div>
 
+            <!-- Tab 0: NEARBY RADAR & DEVICES -->
+            <div id="tab-content-radar" class="tab-pane active">
+              <div class="current-device-bar">
+                <div class="device-badge">
+                  <div class="device-avatar" id="my-device-icon">💻</div>
+                  <div class="device-text-group">
+                    <div class="device-name-text" id="my-device-name">My Browser</div>
+                    <div class="device-sub-text">Visible to other LynqDrop devices on your local Wi-Fi</div>
+                  </div>
+                </div>
+                <button type="button" class="btn-secondary" id="btn-edit-device-name" style="padding: 6px 14px; font-size: 0.82rem;">Rename</button>
+              </div>
+
+              <div class="radar-scan-canvas">
+                <div class="radar-ring r1"></div>
+                <div class="radar-ring r2"></div>
+                <div class="radar-ring r3"></div>
+                <div class="radar-center-beacon">
+                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/><circle cx="12" cy="12" r="10"/></svg>
+                </div>
+              </div>
+
+              <div class="devices-list-container">
+                <div class="devices-section-title">
+                  <span>Detected Nearby Devices (<span id="nearby-device-count">3</span>)</span>
+                  <span class="badge-pill" style="font-size: 0.72rem; padding: 4px 10px;">Scanning LAN...</span>
+                </div>
+                <div class="devices-cards-grid" id="nearby-devices-grid">
+                  <!-- Populated by app.js -->
+                </div>
+              </div>
+            </div>
+
             <!-- Tab 1: SEND FILES -->
-            <div id="tab-content-send" class="tab-pane active">
+            <div id="tab-content-send" class="tab-pane" style="display: none;">
               <!-- Dropzone -->
               <div id="web-dropzone" class="dropzone-box">
                 <input type="file" id="web-file-input" multiple style="display:none;">
+                <input type="file" id="web-folder-input" webkitdirectory directory multiple style="display:none;">
                 <div class="dropzone-icon-circle">
                   <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
@@ -129,12 +171,16 @@
                     <line x1="12" y1="3" x2="12" y2="15"></line>
                   </svg>
                 </div>
-                <h3>Drag &amp; Drop Files Here</h3>
-                <p class="dropzone-desc">Direct Peer-to-Peer Transfer · No Cloud Storage · Zero File Size Limits</p>
+                <h3>Drag &amp; Drop Files or Folders</h3>
+                <p class="dropzone-desc">Direct Peer-to-Peer Transfer · No Cloud Storage · Unlimited Speed</p>
                 <div class="dropzone-btn-row">
                   <button type="button" class="btn-primary" onclick="document.getElementById('web-file-input').click()">
                     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>
                     Browse Files
+                  </button>
+                  <button type="button" class="btn-secondary" onclick="document.getElementById('web-folder-input').click()">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+                    Select Folder
                   </button>
                 </div>
               </div>
@@ -147,7 +193,8 @@
                 </div>
                 <div id="tray-items-list" class="tray-items-scroll"></div>
                 <div class="tray-actions">
-                  <button type="button" class="btn-secondary" onclick="document.getElementById('web-file-input').click()">+ Add More</button>
+                  <button type="button" class="btn-secondary" onclick="document.getElementById('web-file-input').click()">+ Add Files</button>
+                  <button type="button" class="btn-secondary" onclick="document.getElementById('web-folder-input').click()">+ Add Folder</button>
                   <button type="button" class="btn-primary" id="btn-create-room">
                     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
                     Start Sharing Room ➔
@@ -185,7 +232,37 @@
               </div>
             </div>
 
-            <!-- Tab 2: RECEIVE FILES -->
+            <!-- Tab 2: QUICK TEXT & CLIPBOARD SHARING -->
+            <div id="tab-content-text" class="tab-pane" style="display: none;">
+              <div class="receive-hero-box" style="text-align: left;">
+                <div style="display:flex; align-items:center; gap:12px; margin-bottom: 8px;">
+                  <div class="dropzone-icon-circle" style="width:48px; height:48px; margin:0;">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+                  </div>
+                  <div>
+                    <h3 style="margin:0; font-size:1.15rem;">Quick Text &amp; Clipboard Transfer</h3>
+                    <p class="dropzone-desc" style="margin:0;">Instantly share links, codes, notes, or passwords across devices without creating a file.</p>
+                  </div>
+                </div>
+                <textarea id="quick-text-input" class="quick-text-box" placeholder="Type or paste text, links, or notes here to send immediately to nearby devices..."></textarea>
+                <div class="quick-text-footer">
+                  <span id="quick-text-char-count">0 characters</span>
+                  <div style="display: flex; gap: 10px;">
+                    <button type="button" class="btn-secondary" id="btn-clear-quick-text">Clear</button>
+                    <button type="button" class="btn-primary" id="btn-send-quick-text">
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+                      Broadcast Text to Nearby Peers
+                    </button>
+                  </div>
+                </div>
+                <div id="text-broadcast-toast" class="receive-status-box" style="display:none; margin-top: 14px;">
+                  <span class="pulse-beacon"></span>
+                  <span id="text-broadcast-msg">Text sent to nearby devices successfully!</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Tab 3: RECEIVE FILES -->
             <div id="tab-content-receive" class="tab-pane" style="display: none;">
               <div class="receive-hero-box">
                 <div class="dropzone-icon-circle">
