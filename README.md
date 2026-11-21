@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="website/assets/lynqdrop_full_brand.png" alt="LynqDrop Logo" width="480">
+<img src="https://lynqdrop.web.app/assets/lynqdrop_horizontal.png" alt="LynqDrop Logo" width="480">
 
 <br/>
 
@@ -24,7 +24,8 @@ Download the latest version of LynqDrop for your operating system:
 | Platform | Download Link | Notes |
 | :--- | :--- | :--- |
 | 🤖 **Android** | [Download APK](https://github.com/Tcode-Motion/lynqdrop/releases/latest/download/lynqdrop-v1.0.0-android.apk) | Android 5.0+ (ARM64, ARMv7, x86_64) |
-| 🪟 **Windows** | [Download ZIP](https://github.com/Tcode-Motion/lynqdrop/releases/latest/download/lynqdrop-v1.0.0-windows.zip) | Windows 10 & 11 (64-bit portable/installer) |
+| 🪟 **Windows (Setup Installer)** | [Download Setup (.exe)](https://github.com/Tcode-Motion/lynqdrop/releases/latest/download/lynqdrop-v1.0.0-windows-setup.exe) | Windows 10 & 11 (64-bit installer with tray & shortcuts) |
+| 🪟 **Windows (Portable)** | [Download Portable (.zip)](https://github.com/Tcode-Motion/lynqdrop/releases/latest/download/lynqdrop-v1.0.0-windows.zip) | Portable standalone release |
 | 🌐 **Web Browser** | [Open Browser Share](https://lynqdrop.web.app#browser-share) | Zero install needed. Works in any mobile or desktop browser |
 | 📦 **All Releases** | [View All GitHub Releases](https://github.com/Tcode-Motion/lynqdrop/releases) | Release changelogs & checksums |
 
@@ -42,7 +43,7 @@ Download the latest version of LynqDrop for your operating system:
 
 ## 🌐 Official Website
 
-Visit the official website for interactive demonstrations, browser sharing guides, and platform installers:  
+Visit the official website for interactive demonstrations, live browser sharing radar, and documentation:  
 👉 **[https://lynqdrop.web.app](https://lynqdrop.web.app)**
 
 ---
@@ -50,4 +51,3 @@ Visit the official website for interactive demonstrations, browser sharing guide
 ## 🛡️ License & Attribution
 
 LynqDrop is open-source software licensed under the **Apache License, Version 2.0**.
-See [website/index.html](website/index.html) and release documentation for third-party acknowledgments.
