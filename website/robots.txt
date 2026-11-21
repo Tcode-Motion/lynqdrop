@@ -1,4 +1,0 @@
-User-agent: *
-Allow: /
-
-Sitemap: https://lynqdrop.web.app/sitemap.xml
