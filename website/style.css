@@ -2491,34 +2491,37 @@ body.in-live-room .chat-input-bar .btn-chat-send {
    ========================================================================= */
 @media (min-width: 769px) {
   body.in-live-room {
-    background: radial-gradient(circle at 50% 30%, #15202b 0%, #0c1317 100%) !important;
-    display: flex !important;
-    align-items: center !important;
-    justify-content: center !important;
+    background: #0b141a !important;
+    overflow: hidden !important;
   }
 
   body.in-live-room #p2p-live-room {
     position: fixed !important;
-    top: 50% !important;
-    left: 50% !important;
-    transform: translate(-50%, -50%) !important;
-    width: 92vw !important;
-    max-width: 1040px !important;
-    height: 92vh !important;
-    max-height: 860px !important;
-    border-radius: 16px !important;
-    border: 1px solid rgba(255, 255, 255, 0.1) !important;
-    box-shadow: 0 24px 70px rgba(0, 0, 0, 0.85), 0 0 0 1px rgba(0, 168, 132, 0.2) !important;
+    top: 0 !important;
+    left: 0 !important;
+    right: 0 !important;
+    bottom: 0 !important;
+    width: 100vw !important;
+    max-width: 100vw !important;
+    height: 100dvh !important;
+    max-height: 100dvh !important;
+    border-radius: 0 !important;
+    border: none !important;
+    box-shadow: none !important;
     overflow: hidden !important;
+    transform: none !important;
+    display: flex !important;
+    flex-direction: column !important;
   }
 
   body.in-live-room .live-room-topbar,
   body.in-live-room .wa-topbar {
     height: 62px !important;
     min-height: 62px !important;
-    padding: 0 20px !important;
+    padding: 0 24px !important;
     border-bottom: 1px solid rgba(255, 255, 255, 0.08) !important;
     background: #202c33 !important;
+    width: 100% !important;
   }
 
   body.in-live-room .peer-header-name {
@@ -2536,21 +2539,33 @@ body.in-live-room .chat-input-bar .btn-chat-send {
     font-size: 0.85rem !important;
   }
 
+  body.in-live-room .chat-feed-container {
+    width: 100% !important;
+    flex: 1 1 auto !important;
+    overflow-y: auto !important;
+    display: flex !important;
+    flex-direction: column !important;
+  }
+
   body.in-live-room .chat-feed {
+    width: 100% !important;
+    max-width: 1100px !important;
     padding: 24px 32px !important;
     gap: 12px !important;
+    margin: 0 auto !important;
   }
 
   body.in-live-room .chat-bubble {
-    max-width: 580px !important;
+    max-width: 650px !important;
     font-size: 0.95rem !important;
   }
 
   body.in-live-room .chat-input-bar,
   body.in-live-room .wa-input-bar {
+    width: 100% !important;
     min-height: 64px !important;
-    padding: 10px 18px !important;
-    gap: 10px !important;
+    padding: 10px 24px !important;
+    gap: 12px !important;
     background: #202c33 !important;
   }
 
@@ -3484,4 +3499,243 @@ body.in-live-room .chat-input-bar .btn-chat-send {
   border-radius: 6px;
   background: #000;
   outline: none;
+}
+
+
+/* =========================================================================
+   MULTI-PEER GROUP CHAT, ADMIN LIMITS & LIVE SCREEN PRESENCE
+   ========================================================================= */
+
+/* Admin Limit Box inside Sender Room Card */
+.admin-room-limit-box {
+  margin-top: 14px;
+  padding: 12px 14px;
+  background: rgba(0, 0, 0, 0.25);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.limit-box-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: #8696a0;
+}
+
+.limit-box-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: #00a884;
+}
+
+.limit-val-badge {
+  background: rgba(0, 168, 132, 0.2);
+  color: #00a884;
+  padding: 2px 8px;
+  border-radius: 10px;
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+
+.limit-pill-selector {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.btn-limit-pill {
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: #d1d7db;
+  padding: 5px 12px;
+  border-radius: 8px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.btn-limit-pill:hover {
+  background: rgba(255, 255, 255, 0.12);
+  color: #fff;
+  border-color: rgba(255, 255, 255, 0.25);
+}
+
+.btn-limit-pill.active {
+  background: #00a884 !important;
+  border-color: #00a884 !important;
+  color: #fff !important;
+  box-shadow: 0 0 12px rgba(0, 168, 132, 0.45) !important;
+}
+
+.limit-note-text {
+  font-size: 0.72rem;
+  color: #8696a0;
+  line-height: 1.3;
+}
+
+/* Presence Counter Pill in Chat Topbar */
+.presence-counter-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: rgba(16, 185, 129, 0.12);
+  border: 1px solid rgba(16, 185, 129, 0.3);
+  padding: 4px 10px;
+  border-radius: 14px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #10b981;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+}
+
+.presence-counter-pill:hover {
+  background: rgba(16, 185, 129, 0.2);
+  border-color: #10b981;
+}
+
+.presence-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #10b981;
+  box-shadow: 0 0 6px #10b981;
+  animation: pulsePresence 2s infinite;
+}
+
+@keyframes pulsePresence {
+  0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7); }
+  70% { transform: scale(1.15); box-shadow: 0 0 0 6px rgba(16, 185, 129, 0); }
+  100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
+}
+
+/* Admin Limit Pill in Topbar */
+.btn-admin-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  background: rgba(234, 179, 8, 0.15);
+  border: 1px solid rgba(234, 179, 8, 0.35);
+  color: #eab308;
+  padding: 4px 8px;
+  border-radius: 12px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.btn-admin-pill:hover {
+  background: rgba(234, 179, 8, 0.25);
+  border-color: #eab308;
+  color: #fff;
+}
+
+/* Participant Roster List inside Modal */
+.participants-list-container {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 380px;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
+.participant-item-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 12px;
+  background: #111b21;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 10px;
+  gap: 10px;
+}
+
+.participant-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  flex: 1;
+}
+
+.participant-avatar-sm {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  background: #2a3942;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.1rem;
+  flex-shrink: 0;
+}
+
+.participant-details {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  min-width: 0;
+}
+
+.participant-name-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.participant-name {
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: #e9edef;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.admin-crown-badge {
+  background: rgba(234, 179, 8, 0.2);
+  color: #eab308;
+  font-size: 0.65rem;
+  font-weight: 800;
+  padding: 1px 5px;
+  border-radius: 4px;
+  border: 1px solid rgba(234, 179, 8, 0.4);
+}
+
+.participant-device-os {
+  font-size: 0.72rem;
+  color: #8696a0;
+}
+
+.participant-status-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  padding: 3px 8px;
+  border-radius: 12px;
+  flex-shrink: 0;
+}
+
+.participant-status-tag.active {
+  background: rgba(16, 185, 129, 0.15);
+  color: #10b981;
+  border: 1px solid rgba(16, 185, 129, 0.3);
+}
+
+.participant-status-tag.inactive {
+  background: rgba(134, 150, 160, 0.15);
+  color: #8696a0;
+  border: 1px solid rgba(134, 150, 160, 0.25);
 }

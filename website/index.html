@@ -23,7 +23,7 @@
   <link rel="manifest" href="./manifest.webmanifest">
   <meta name="theme-color" content="#080b14">
 
-  <link rel="stylesheet" href="./style.css?v=3.0.0">
+  <link rel="stylesheet" href="./style.css?v=3.3.0">
 
   <script type="application/ld+json">
   {
@@ -240,6 +240,23 @@
 
                 <div class="share-link-row">
                   <input type="text" id="share-url-field" readonly class="share-url-textbox">
+                </div>
+                
+                <!-- Admin Participant Limit Selector -->
+                <div class="admin-room-limit-box">
+                  <div class="limit-box-header">
+                    <span class="limit-box-label">👥 MAX CONNECTED PEERS (ADMIN LIMIT):</span>
+                    <span id="current-limit-badge" class="limit-val-badge">Unlimited</span>
+                  </div>
+                  <div class="limit-pill-selector" id="admin-create-limit-pills">
+                    <button type="button" class="btn-limit-pill" data-limit="2">2</button>
+                    <button type="button" class="btn-limit-pill" data-limit="5">5</button>
+                    <button type="button" class="btn-limit-pill" data-limit="10">10</button>
+                    <button type="button" class="btn-limit-pill" data-limit="25">25</button>
+                    <button type="button" class="btn-limit-pill" data-limit="50">50</button>
+                    <button type="button" class="btn-limit-pill active" data-limit="0">Unlimited</button>
+                  </div>
+                  <div class="limit-note-text">Set how many people can connect at once. As room admin, you can edit this anytime in the chat.</div>
                 </div>
                 
                 <div class="security-notice">
@@ -614,6 +631,17 @@
             </div>
 
             <div class="wa-topbar-actions">
+              <!-- Live Presence Pill (Active In-Screen vs Minimized Count) -->
+              <div class="presence-counter-pill" id="live-presence-pill" title="Tap to view connected people and their active status">
+                <span class="presence-dot"></span>
+                <span id="online-count-badge">1 in screen</span>
+              </div>
+
+              <!-- Admin Settings Button (Visible only to Room Admin/Host) -->
+              <button type="button" class="btn-admin-pill" id="btn-admin-room-settings" title="Admin Settings: Change Participant Limit" style="display: none;">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+                <span>Limit</span>
+              </button>
               <div class="room-identity-pill" id="live-room-badge" title="Tap to Copy Room Code">
                 <span id="live-room-code-tag" class="room-code-tag">LD-------</span>
                 <button type="button" class="btn-icon-copy" id="btn-live-copy-link" title="Copy Room Invite Link">
@@ -816,6 +844,78 @@
     </div>
   </div>
 
+  <!-- Connected Participants & Active In-Screen Presence Modal -->
+  <div id="room-participants-modal" class="diagnostics-modal-backdrop" style="display: none;">
+    <div class="diagnostics-modal-content" style="max-width: 500px;">
+      <div class="diag-modal-header">
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <span style="font-size: 1.25rem;">👥</span>
+          <h3>Room Participants</h3>
+        </div>
+        <button type="button" class="modal-close-btn" id="btn-close-participants-modal">&times;</button>
+      </div>
+      <div class="diag-modal-body">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; font-size: 0.82rem; color: #8696a0;">
+          <span id="participants-modal-summary">1 active in screen · 1 total</span>
+          <span id="participants-modal-limit-info" style="color: #00a884; font-weight: 600;">Limit: Unlimited</span>
+        </div>
+        <div id="participants-list-container" class="participants-list-container">
+          <!-- Dynamically populated roster item cards -->
+        </div>
+      </div>
+      <div class="diag-modal-footer">
+        <button type="button" class="btn-secondary-sm" id="btn-close-participants-footer">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Room Admin Configuration Modal (Change limit while in room) -->
+  <div id="admin-settings-modal" class="diagnostics-modal-backdrop" style="display: none;">
+    <div class="diagnostics-modal-content" style="max-width: 480px;">
+      <div class="diag-modal-header">
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <span style="font-size: 1.25rem;">👑</span>
+          <h3>Admin Room Controls</h3>
+        </div>
+        <button type="button" class="modal-close-btn" id="btn-close-admin-modal">&times;</button>
+      </div>
+      <div class="diag-modal-body">
+        <p style="font-size: 0.85rem; color: #8696a0; margin-bottom: 14px;">
+          As room admin, you can set or change how many people can join and connect simultaneously at any time.
+        </p>
+        <div class="admin-modal-limit-section">
+          <label style="font-size: 0.8rem; font-weight: 700; color: #00a884; display: block; margin-bottom: 8px;">
+            SET MAX CONNECTED PEERS:
+          </label>
+          <div class="limit-pill-selector" id="admin-modal-limit-pills">
+            <button type="button" class="btn-limit-pill" data-limit="2">2</button>
+            <button type="button" class="btn-limit-pill" data-limit="5">5</button>
+            <button type="button" class="btn-limit-pill" data-limit="10">10</button>
+            <button type="button" class="btn-limit-pill" data-limit="25">25</button>
+            <button type="button" class="btn-limit-pill" data-limit="50">50</button>
+            <button type="button" class="btn-limit-pill active" data-limit="0">Unlimited</button>
+          </div>
+        </div>
+        <div id="admin-limit-status-msg" style="margin-top: 12px; font-size: 0.82rem; color: #38bdf8;"></div>
+      </div>
+      <div class="diag-modal-footer">
+        <button type="button" class="btn-secondary-sm" id="btn-close-admin-footer">Done</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Room Full Rejection Modal -->
+  <div id="room-full-modal" class="room-ended-modal" style="display: none;">
+    <div class="ended-card">
+      <div class="ended-icon">🚫</div>
+      <h3>Room Limit Reached</h3>
+      <p id="room-full-reason">This room has reached its maximum participant limit set by the admin.</p>
+      <div style="display: flex; gap: 10px; justify-content: center; margin-top: 14px;">
+        <button type="button" class="btn-primary" onclick="window.location.href = window.location.origin">Return to Home</button>
+      </div>
+    </div>
+  </div>
+
 
   <!-- Real-Time Connection Diagnostics Modal -->
   <div class="diagnostics-modal-backdrop" id="connection-diagnostics-modal" style="display: none;">
@@ -873,9 +973,9 @@
   </div>
 
   <!-- Scripts (Versioned for Instant Cache Busting) -->
-  <script src="./mqtt.min.js?v=3.2.0"></script>
+  <script src="./mqtt.min.js?v=3.3.0"></script>
   <script src="./peerjs.min.js?v=2.6.0"></script>
   <script src="./qrcode.min.js?v=2.7.4"></script>
-  <script src="./app.js?v=3.2.0"></script>
+  <script src="./app.js?v=3.3.0"></script>
 </body>
 </html>

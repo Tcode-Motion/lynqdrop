@@ -353,6 +353,9 @@ document.addEventListener('DOMContentLoaded', () => {
     liveRoomOpen = true;
     currentRoomCode = code;
     isSenderRole = !!isHost;
+    if (isHost) {
+      isRoomAdmin = true;
+    }
     try { window.scrollTo(0, 0); } catch (_) {}
 
     try {
@@ -363,6 +366,21 @@ document.addEventListener('DOMContentLoaded', () => {
     } catch (_) {}
 
     document.body.classList.add('in-live-room');
+
+    // Admin button visibility (Host only)
+    const btnAdminRoomSettings = document.getElementById('btn-admin-room-settings');
+    if (btnAdminRoomSettings) {
+      btnAdminRoomSettings.style.display = isRoomAdmin ? 'inline-flex' : 'none';
+    }
+
+    // Start active in-screen presence tracking loops
+    broadcastPresence();
+    if (!presenceHeartbeatInterval) {
+      presenceHeartbeatInterval = setInterval(broadcastPresence, 2500);
+    }
+    if (!presencePruneInterval) {
+      presencePruneInterval = setInterval(pruneAndRenderPresence, 3000);
+    }
 
     // Transition out lobby views
     if (sharingRoomCard) sharingRoomCard.style.display = 'none';
@@ -420,6 +438,20 @@ document.addEventListener('DOMContentLoaded', () => {
     const handleLeaveRoom = () => {
       if (confirm('Leave this room and terminate the session?')) {
         document.body.classList.remove('in-live-room');
+        if (presenceHeartbeatInterval) {
+          clearInterval(presenceHeartbeatInterval);
+          presenceHeartbeatInterval = null;
+        }
+        if (presencePruneInterval) {
+          clearInterval(presencePruneInterval);
+          presencePruneInterval = null;
+        }
+        sendPacket({ type: 'PEER_LEFT', senderId: myClientId });
+        participantsRoster.clear();
+        for (const [peerId, conn] of activePeersMap.entries()) {
+          try { conn.close(); } catch (_) {}
+        }
+        activePeersMap.clear();
         sendPacket({ type: 'ROOM_TERMINATED', reason: 'Peer left the room.' }, true);
         if (chatFeed) chatFeed.innerHTML = '';
         selectedFiles = [];
@@ -1010,15 +1042,24 @@ document.addEventListener('DOMContentLoaded', () => {
 
           const slice = rawFile.slice(offset, offset + WEBRTC_CHUNK_SIZE);
           const buffer = await slice.arrayBuffer();
-          try {
-            activeConnection.send({
-              type: 'CHUNK',
-              transferId,
-              fileIndex: i,
-              chunk: buffer
-            });
-          } catch (e) {
-            console.warn('[LynqDrop] WebRTC conn.send failed:', e);
+          const chunkMsg = {
+            type: 'CHUNK',
+            transferId,
+            fileIndex: i,
+            chunk: buffer
+          };
+          for (const [peerId, conn] of activePeersMap.entries()) {
+            try {
+              const pDc = conn.dataChannel || conn._dc;
+              if (conn.open || (pDc && pDc.readyState === 'open')) {
+                conn.send(chunkMsg);
+              }
+            } catch (e) {
+              console.warn(`[LynqDrop] WebRTC chunk send to ${peerId} failed:`, e);
+            }
+          }
+          if (activePeersMap.size === 0 && activeConnection) {
+            try { activeConnection.send(chunkMsg); } catch (_) {}
           }
           offset += buffer.byteLength;
         } else {
@@ -1169,6 +1210,20 @@ document.addEventListener('DOMContentLoaded', () => {
 
   function showRoomEndedModal(reason) {
     document.body.classList.remove('in-live-room');
+    if (presenceHeartbeatInterval) {
+      clearInterval(presenceHeartbeatInterval);
+      presenceHeartbeatInterval = null;
+    }
+    if (presencePruneInterval) {
+      clearInterval(presencePruneInterval);
+      presencePruneInterval = null;
+    }
+    participantsRoster.clear();
+    for (const [peerId, conn] of activePeersMap.entries()) {
+      try { conn.close(); } catch (_) {}
+    }
+    activePeersMap.clear();
+
     if (chatFeed) chatFeed.innerHTML = '';
     selectedFiles = [];
     pendingFilesQueue = [];
@@ -1192,6 +1247,23 @@ document.addEventListener('DOMContentLoaded', () => {
         window.location.href = window.location.origin;
       };
     }
+  }
+
+  function showRoomFullModal(reason) {
+    document.body.classList.remove('in-live-room');
+    if (p2pLiveRoom) p2pLiveRoom.style.display = 'none';
+    if (presenceHeartbeatInterval) {
+      clearInterval(presenceHeartbeatInterval);
+      presenceHeartbeatInterval = null;
+    }
+    if (presencePruneInterval) {
+      clearInterval(presencePruneInterval);
+      presencePruneInterval = null;
+    }
+    const modal = document.getElementById('room-full-modal');
+    const reasonEl = document.getElementById('room-full-reason');
+    if (reasonEl) reasonEl.textContent = reason || 'This room has reached its maximum participant limit set by the admin.';
+    if (modal) modal.style.display = 'flex';
   }
 
   const myDevice = getClientDevice();
@@ -1459,11 +1531,19 @@ document.addEventListener('DOMContentLoaded', () => {
 
               const topicLen = (buf[pos] << 8) | buf[pos + 1];
               pos += 2;
+              const topBytes = buf.subarray(pos, pos + topicLen);
               pos += topicLen;
               const td = new TextDecoder();
+              const recTopic = td.decode(topBytes);
               const payload = td.decode(buf.subarray(pos));
-              const cb = this.handlers.get(this.subTopic);
-              if (cb) cb(payload);
+              const cb = this.handlers.get(recTopic);
+              if (cb) {
+                cb(payload);
+              } else {
+                for (const [top, fn] of this.handlers.entries()) {
+                  if (fn) fn(payload);
+                }
+              }
             }
           };
 
@@ -1535,16 +1615,20 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   class BrowserRelay {
-    constructor(roomCode, role, onPacket) {
+    constructor(roomCode, role, onPacket, clientId) {
       const cleanCode = (roomCode || '').toLowerCase().replace(/[^a-z0-9]/g, '');
       this.roomCode = cleanCode;
       this.role = role; // 'sender' | 'receiver'
+      this.clientId = clientId || ('c_' + Math.random().toString(36).slice(2, 10));
       this.onPacket = onPacket;
       this.connected = false;
       this.closed = false;
 
-      this.subTopic = role === 'sender' ? `lynqdrop/v1/${cleanCode}/to-sender` : `lynqdrop/v1/${cleanCode}/to-receiver`;
-      this.pubTopic = role === 'sender' ? `lynqdrop/v1/${cleanCode}/to-receiver` : `lynqdrop/v1/${cleanCode}/to-sender`;
+      // Group broadcast topic for all peers in the room + unicast topic + legacy topics
+      this.groupTopic = `lynqdrop/v1/${cleanCode}/group`;
+      this.directTopic = `lynqdrop/v1/${cleanCode}/to-${this.clientId}`;
+      this.subLegacyTopic = role === 'sender' ? `lynqdrop/v1/${cleanCode}/to-sender` : `lynqdrop/v1/${cleanCode}/to-receiver`;
+      this.pubLegacyTopic = role === 'sender' ? `lynqdrop/v1/${cleanCode}/to-receiver` : `lynqdrop/v1/${cleanCode}/to-sender`;
 
       this.client = null;
       this.seenIds = new Set();
@@ -1562,34 +1646,43 @@ document.addEventListener('DOMContentLoaded', () => {
           }
         };
 
+        const handleIncoming = (strPayload) => {
+          try {
+            const parsed = JSON.parse(strPayload);
+            if (!parsed) return;
+            // Ignore messages from self
+            if (parsed.senderId && parsed.senderId === this.clientId) return;
+            // Deduplicate packet id
+            if (parsed.id && this.seenIds.has(parsed.id)) return;
+            if (parsed.id) this.seenIds.add(parsed.id);
+            if (this.onPacket) this.onPacket(parsed, 'relay');
+          } catch (e) {
+            console.warn('[BrowserRelay] MQTT JSON parse error:', e);
+          }
+        };
+
         try {
           if (typeof mqtt !== 'undefined' && mqtt.connect) {
             this.client = mqtt.connect('wss://broker.hivemq.com:8884/mqtt', {
               clean: true,
               connectTimeout: 5000,
               reconnectPeriod: 2000,
-              clientId: 'ld_' + this.role + '_' + Math.random().toString(36).slice(2, 9)
+              clientId: 'ld_' + this.role + '_' + this.clientId
             });
 
             this.client.on('connect', () => {
-              console.log(`[BrowserRelay] MQTT connected as ${this.role}`);
+              console.log(`[BrowserRelay] MQTT connected as ${this.role} (${this.clientId})`);
               this.connected = true;
-              this.client.subscribe(this.subTopic, { qos: 0 }, (err) => {
+              const topics = [this.groupTopic, this.directTopic, this.subLegacyTopic];
+              this.client.subscribe(topics, { qos: 0 }, (err) => {
                 if (err) console.warn('[BrowserRelay] Subscribe error:', err);
-                else console.log(`[BrowserRelay] Subscribed to ${this.subTopic}`);
+                else console.log(`[BrowserRelay] Subscribed to ${topics.join(', ')}`);
                 done(true);
               });
             });
 
             this.client.on('message', (topic, payload) => {
-              try {
-                const parsed = JSON.parse(payload.toString());
-                if (parsed && parsed.id && this.seenIds.has(parsed.id)) return;
-                if (parsed && parsed.id) this.seenIds.add(parsed.id);
-                if (this.onPacket) this.onPacket(parsed, 'relay');
-              } catch (e) {
-                console.warn('[BrowserRelay] MQTT JSON parse error:', e);
-              }
+              handleIncoming(payload.toString());
             });
 
             this.client.on('error', (err) => {
@@ -1597,17 +1690,12 @@ document.addEventListener('DOMContentLoaded', () => {
               done(false);
             });
           } else {
-            this.client = new BrowserMicroMQTT('wss://broker.hivemq.com:8884/mqtt', 'ld_' + this.role + '_' + Math.random().toString(36).slice(2, 9));
+            this.client = new BrowserMicroMQTT('wss://broker.hivemq.com:8884/mqtt', 'ld_' + this.role + '_' + this.clientId);
             this.client.connect().then((ok) => {
               if (ok) {
-                this.client.subscribe(this.subTopic, (strPayload) => {
-                  try {
-                    const parsed = JSON.parse(strPayload);
-                    if (parsed && parsed.id && this.seenIds.has(parsed.id)) return;
-                    if (parsed && parsed.id) this.seenIds.add(parsed.id);
-                    if (this.onPacket) this.onPacket(parsed, 'relay');
-                  } catch (_) {}
-                });
+                this.client.subscribe(this.groupTopic, handleIncoming);
+                this.client.subscribe(this.directTopic, handleIncoming);
+                this.client.subscribe(this.subLegacyTopic, handleIncoming);
               }
               done(ok);
             });
@@ -1627,11 +1715,17 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!obj.id) {
           obj.id = 'p_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7);
         }
+        if (!obj.senderId) {
+          obj.senderId = this.clientId;
+        }
         this.seenIds.add(obj.id);
         const payload = JSON.stringify(obj);
 
         if (this.client && typeof this.client.publish === 'function') {
-          this.client.publish(this.pubTopic, payload, { qos: 0 });
+          // Broadcast to shared room group topic
+          this.client.publish(this.groupTopic, payload, { qos: 0 });
+          // Also publish to legacy 1-to-1 topic for backward compatibility
+          this.client.publish(this.pubLegacyTopic, payload, { qos: 0 });
           return true;
         }
         return false;
@@ -1704,19 +1798,36 @@ document.addEventListener('DOMContentLoaded', () => {
     if (!packet.id) {
       packet.id = 'p_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7);
     }
+    if (!packet.senderId) {
+      packet.senderId = myClientId;
+    }
     seenPacketIds.add(packet.id);
 
     let sent = false;
-    const hasP2P = activeConnection && (activeConnection.open || (activeConnection.dataChannel && activeConnection.dataChannel.readyState === 'open'));
-    if (hasP2P) {
+    // Broadcast via WebRTC to all connected peers
+    for (const [peerId, conn] of activePeersMap.entries()) {
       try {
-        activeConnection.send(packet);
-        sent = true;
+        const dc = conn.dataChannel || conn._dc;
+        if (conn.open || (dc && dc.readyState === 'open')) {
+          conn.send(packet);
+          sent = true;
+        }
       } catch (e) {
-        console.warn('[LynqDrop] WebRTC send failed:', e);
+        console.warn(`[LynqDrop] WebRTC send to ${peerId} failed:`, e);
       }
     }
 
+    if (!sent && activeConnection) {
+      try {
+        const dc = activeConnection.dataChannel || activeConnection._dc;
+        if (activeConnection.open || (dc && dc.readyState === 'open')) {
+          activeConnection.send(packet);
+          sent = true;
+        }
+      } catch (_) {}
+    }
+
+    // Always broadcast via Relay (shared group topic)
     if (activeRelay && activeRelay.connected) {
       try {
         activeRelay.publish(packet, isKeepAlive);
@@ -1728,8 +1839,25 @@ document.addEventListener('DOMContentLoaded', () => {
     return sent;
   }
 
+  function fanOutToPeers(data, excludePeerId) {
+    if (!isSenderRole) return;
+    for (const [peerId, otherConn] of activePeersMap.entries()) {
+      if (peerId !== excludePeerId) {
+        try {
+          const dc = otherConn.dataChannel || otherConn._dc;
+          if (otherConn.open || (dc && dc.readyState === 'open')) {
+            otherConn.send(data);
+          }
+        } catch (e) {
+          console.warn(`[LynqDrop] Fan-out to ${peerId} failed:`, e);
+        }
+      }
+    }
+  }
+
   function handleIncomingPacket(msg, source) {
     if (!msg) return;
+    if (msg.senderId && msg.senderId === myClientId) return;
     if (msg.id && seenPacketIds.has(msg.id)) return;
     if (msg.id) seenPacketIds.add(msg.id);
 
@@ -1739,7 +1867,33 @@ document.addEventListener('DOMContentLoaded', () => {
 
     console.log(`[LynqDrop Packet Received via ${source || 'unknown'}]:`, msg.type);
 
-    if (msg.type === 'SENDER_ONLINE') {
+    if (msg.type === 'PRESENCE_HEARTBEAT') {
+      if (msg.senderId && msg.senderId !== myClientId) {
+        participantsRoster.set(msg.senderId, {
+          id: msg.senderId,
+          alias: msg.alias || 'Participant',
+          os: msg.os || 'web',
+          isAdmin: !!msg.isAdmin,
+          isActive: !!msg.isActive,
+          lastSeen: Date.now()
+        });
+        renderPresenceUI();
+      }
+    } else if (msg.type === 'ROOM_CONFIG_UPDATE') {
+      if (typeof msg.maxParticipants === 'number') {
+        roomMaxParticipants = msg.maxParticipants;
+        renderPresenceUI();
+        console.log('[LynqDrop] Admin updated participant limit to:', roomMaxParticipants);
+      }
+    } else if (msg.type === 'ROOM_FULL') {
+      showRoomFullModal(msg.reason);
+    } else if (msg.type === 'PEER_LEFT') {
+      if (msg.senderId) {
+        participantsRoster.delete(msg.senderId);
+        activePeersMap.delete(msg.senderId);
+        renderPresenceUI();
+      }
+    } else if (msg.type === 'SENDER_ONLINE') {
       console.log('[LynqDrop] Sender online announcement received via relay');
       if (msg.sender) {
         remoteDevice = msg.sender;
@@ -1841,14 +1995,18 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     } else if (msg.type === 'CHAT_MSG') {
       appendChatMessage({
-        sender: (remoteDevice && remoteDevice.name) || (isSenderRole ? 'Receiver' : 'Sender'),
+        sender: msg.senderAlias || (msg.isAdmin ? '👑 Admin' : (remoteDevice && remoteDevice.name) || (isSenderRole ? 'Receiver' : 'Sender')),
         text: msg.text,
         time: msg.time || Date.now(),
         isMine: false
       });
       // Send delivery acknowledgment back so sender can show ✓✓
       if (msg.msgId) {
-        sendPacket({ type: 'CHAT_ACK', msgId: msg.msgId });
+        sendPacket({ type: 'CHAT_ACK', msgId: msg.msgId, ackFrom: myClientId });
+      }
+      // Fan out if host received via WebRTC
+      if (isSenderRole && source === 'webrtc') {
+        fanOutToPeers(msg, msg.senderId);
       }
     } else if (msg.type === 'CHAT_ACK') {
       // Upgrade sender's bubble from single ✓ to double ✓✓
@@ -1857,7 +2015,10 @@ document.addEventListener('DOMContentLoaded', () => {
       // Upgrade sender's file card from single ✓ to Double Blue Tick ✓✓
       if (msg.transferId) markFileDelivered(msg.transferId, msg.name);
     } else if (msg.type === 'FILE_START' || msg.type === 'CHUNK' || msg.type === 'FILE_END' || msg.type === 'ALL_COMPLETE') {
-      handleIncomingFileData(msg, (remoteDevice && remoteDevice.name) || (isSenderRole ? 'Receiver' : 'Sender'));
+      handleIncomingFileData(msg, msg.senderAlias || (remoteDevice && remoteDevice.name) || (isSenderRole ? 'Receiver' : 'Sender'));
+      if (isSenderRole && source === 'webrtc') {
+        fanOutToPeers(msg, msg.senderId);
+      }
     } else if (msg.type === 'ROOM_TERMINATED' || msg.type === 'ROOM_CLOSED') {
       showRoomEndedModal(msg.reason || 'The connected peer closed their browser tab. Room session terminated.');
     } else if (msg.type === 'TEXT') {
@@ -1872,10 +2033,142 @@ document.addEventListener('DOMContentLoaded', () => {
   // =========================================================================
   let activePeer = null;
   let activeConnection = null;
+  const activePeersMap = new Map(); // key: peer.id or conn.peer, value: conn
   let currentRoomCode = null;
   let selectedFiles = [];
   let isSenderRole = false;
+  let isRoomAdmin = false;
+  let roomMaxParticipants = 0; // 0 = unlimited
   let transferInProgress = false;
+
+  // Active In-Screen Presence State & Logic
+  const myClientId = 'c_' + Math.random().toString(36).slice(2, 10);
+  const participantsRoster = new Map(); // key: clientId, value: { id, alias, os, isAdmin, isActive, lastSeen }
+  let presenceHeartbeatInterval = null;
+  let presencePruneInterval = null;
+
+  function isScreenActive() {
+    if (typeof document.hidden !== 'undefined' && document.hidden) return false;
+    if (typeof document.visibilityState !== 'undefined' && document.visibilityState !== 'visible') return false;
+    return document.hasFocus ? document.hasFocus() : true;
+  }
+
+  function broadcastPresence() {
+    if (!liveRoomOpen && !currentRoomCode) return;
+    const activeNow = isScreenActive();
+    // Record self in roster
+    participantsRoster.set(myClientId, {
+      id: myClientId,
+      alias: (myDevice.name || 'Device') + ' (You)',
+      os: myDevice.platform || 'web',
+      isAdmin: isRoomAdmin,
+      isActive: activeNow,
+      lastSeen: Date.now()
+    });
+
+    const packet = {
+      type: 'PRESENCE_HEARTBEAT',
+      senderId: myClientId,
+      alias: myDevice.name || 'Device',
+      os: myDevice.platform || 'web',
+      isAdmin: isRoomAdmin,
+      isActive: activeNow,
+      timestamp: Date.now()
+    };
+    sendPacket(packet, true);
+    renderPresenceUI();
+  }
+
+  function pruneAndRenderPresence() {
+    const now = Date.now();
+    for (const [id, peer] of participantsRoster.entries()) {
+      if (id !== myClientId && (now - peer.lastSeen) > 8000) {
+        participantsRoster.delete(id);
+      }
+    }
+    renderPresenceUI();
+  }
+
+  function renderPresenceUI() {
+    const allPeers = Array.from(participantsRoster.values());
+    const totalCount = Math.max(1, allPeers.length);
+    const inScreenCount = allPeers.filter(p => p.isActive).length;
+
+    const onlineBadge = document.getElementById('online-count-badge');
+    if (onlineBadge) {
+      if (totalCount === 1) {
+        onlineBadge.textContent = inScreenCount === 1 ? '1 in screen' : '0 in screen';
+      } else {
+        onlineBadge.textContent = `${inScreenCount} in screen · ${totalCount} connected`;
+      }
+    }
+
+    if (livePeerStatusText) {
+      const p2pCount = activePeersMap.size;
+      const mode = p2pCount > 0 ? 'Direct P2P' : 'Fast Relay';
+      livePeerStatusText.textContent = `${inScreenCount} in screen • ${totalCount} connected (${mode})`;
+    }
+
+    const modalSummary = document.getElementById('participants-modal-summary');
+    if (modalSummary) {
+      modalSummary.textContent = `${inScreenCount} active in screen · ${totalCount} total connected`;
+    }
+    const modalLimit = document.getElementById('participants-modal-limit-info');
+    if (modalLimit) {
+      modalLimit.textContent = `Limit: ${roomMaxParticipants === 0 ? 'Unlimited' : roomMaxParticipants}`;
+    }
+
+    renderParticipantsRosterList(allPeers);
+  }
+
+  function renderParticipantsRosterList(allPeers) {
+    const container = document.getElementById('participants-list-container');
+    if (!container) return;
+
+    if (!allPeers || allPeers.length === 0) {
+      container.innerHTML = '<div style="text-align: center; color: #8696a0; padding: 20px;">No participants found.</div>';
+      return;
+    }
+
+    let html = '';
+    allPeers.forEach(peer => {
+      const os = (peer.os || '').toLowerCase();
+      const icon = os.includes('win') ? '💻' : os.includes('mac') ? '🍏' : os.includes('android') ? '📱' : os.includes('ios') ? '📱' : '🌐';
+      const isSelf = (peer.id === myClientId);
+      const displayName = peer.alias;
+
+      html += `
+        <div class="participant-item-card">
+          <div class="participant-avatar">${icon}</div>
+          <div class="participant-info">
+            <div class="participant-name-row">
+              <span class="participant-name">${escapeHtml(displayName)}</span>
+              ${peer.isAdmin ? '<span class="admin-badge">👑 Admin</span>' : ''}
+            </div>
+            <div class="participant-meta">
+              ${escapeHtml((peer.os || 'web').toUpperCase())} · ${isSelf ? 'Your Device' : 'Connected Peer'}
+            </div>
+          </div>
+          <div class="participant-status">
+            ${peer.isActive
+              ? '<span class="presence-tag active"><span class="presence-dot"></span> In screen</span>'
+              : '<span class="presence-tag minimized"><span class="minimized-dot"></span> Minimized</span>'}
+          </div>
+        </div>
+      `;
+    });
+    container.innerHTML = html;
+  }
+
+  document.addEventListener('visibilitychange', () => {
+    broadcastPresence();
+  });
+  window.addEventListener('focus', () => {
+    broadcastPresence();
+  });
+  window.addEventListener('blur', () => {
+    broadcastPresence();
+  });
 
   // Access Control State
   let roomPinRequired = false;
@@ -2095,6 +2388,10 @@ document.addEventListener('DOMContentLoaded', () => {
     renderSelectedFiles();
     if (sharingRoomCard) sharingRoomCard.style.display = 'none';
     sendPacket({ type: 'ROOM_CLOSED' });
+    for (const [peerId, conn] of activePeersMap.entries()) {
+      try { conn.close(); } catch (_) {}
+    }
+    activePeersMap.clear();
     if (activeConnection) {
       try {
         activeConnection.close();
@@ -2210,6 +2507,19 @@ document.addEventListener('DOMContentLoaded', () => {
 
       activePeer.on('connection', (conn) => {
         console.log('[LynqDrop] Incoming receiver connected:', conn.peer);
+        // Check participant limit
+        if (roomMaxParticipants > 0 && activePeersMap.size >= roomMaxParticipants) {
+          console.warn(`[LynqDrop] Rejecting ${conn.peer}: Room limit of ${roomMaxParticipants} reached`);
+          try {
+            conn.send({
+              type: 'ROOM_FULL',
+              reason: `This room has reached its maximum participant limit of ${roomMaxParticipants} set by the admin.`
+            });
+            setTimeout(() => { try { conn.close(); } catch(_) {} }, 500);
+          } catch (_) {}
+          return;
+        }
+        activePeersMap.set(conn.peer, conn);
         activeConnection = conn;
         setupSenderConnection(conn);
       });
@@ -2230,21 +2540,23 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   function setupSenderConnection(conn) {
+    activePeersMap.set(conn.peer, conn);
     activeConnection = conn;
-    if (roomStatusLabel) roomStatusLabel.textContent = 'Receiver Connected · Handshaking...';
+    if (roomStatusLabel) roomStatusLabel.textContent = `Peers Connected (${activePeersMap.size}) · Handshaking...`;
 
     // No false safety net — room only opens on real transport ready (relay HELLO or DataChannel open)
     let senderOpenHandled = false;
     function handleSenderOpen() {
       if (senderOpenHandled) return;
       senderOpenHandled = true;
+      activePeersMap.set(conn.peer, conn);
       activeConnection = conn;
       try { conn._open = true; } catch (_) {}
       if (conn.dataChannel) {
         try { conn.dataChannel.binaryType = 'arraybuffer'; } catch (_) {}
       }
-      console.log('[LynqDrop] DataChannel OPEN with receiver');
-      if (roomStatusLabel) roomStatusLabel.textContent = 'Direct P2P DataChannel Connected';
+      console.log('[LynqDrop] DataChannel OPEN with peer:', conn.peer);
+      if (roomStatusLabel) roomStatusLabel.textContent = `Direct P2P DataChannel Connected (${activePeersMap.size} peers)`;
 
       const requiresPin = roomPinRequired && !!roomPinValue;
 
@@ -2338,12 +2650,17 @@ document.addEventListener('DOMContentLoaded', () => {
       if (!data) return;
       handleSenderOpen();
       handleIncomingPacket(data, 'webrtc');
+      fanOutToPeers(data, conn.peer);
     });
 
     conn.on('close', () => {
-      console.log('[LynqDrop] Peer connection closed');
-      showRoomEndedModal('The receiver closed their browser tab or disconnected. Session ended.');
-      updatePlatformBadge(myDevice, null);
+      console.log('[LynqDrop] Peer connection closed:', conn.peer);
+      activePeersMap.delete(conn.peer);
+      participantsRoster.delete(conn.peer);
+      renderPresenceUI();
+      if (activePeersMap.size === 0) {
+        if (roomStatusLabel) roomStatusLabel.textContent = 'Room Active · Waiting for peers to join';
+      }
     });
   }
 
@@ -2546,6 +2863,7 @@ document.addEventListener('DOMContentLoaded', () => {
     function handleReceiverOpen() {
       if (receiverOpenHandled) return;
       receiverOpenHandled = true;
+      activePeersMap.set(conn.peer, conn);
       activeConnection = conn;
       try { conn._open = true; } catch (_) {}
       if (conn.dataChannel) {
@@ -2638,6 +2956,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
     conn.on('close', () => {
       console.log('[LynqDrop Receiver] Connection closed by host');
+      activePeersMap.delete(conn.peer);
+      participantsRoster.delete(conn.peer);
+      renderPresenceUI();
       showRoomEndedModal('The host closed their browser tab or disconnected. Session ended.');
     });
 
@@ -2888,5 +3209,97 @@ document.addEventListener('DOMContentLoaded', () => {
 
       window.open(host, '_blank');
     });
+  }
+
+  // =========================================================================
+  // 16. ROOM ADMIN CONTROLS & ACTIVE IN-SCREEN PRESENCE MODALS
+  // =========================================================================
+  const adminCreatePills = document.querySelectorAll('#admin-create-limit-pills .btn-limit-pill');
+  const currentLimitBadge = document.getElementById('current-limit-badge');
+  adminCreatePills.forEach(pill => {
+    pill.addEventListener('click', () => {
+      adminCreatePills.forEach(p => p.classList.remove('active'));
+      pill.classList.add('active');
+      const limit = parseInt(pill.dataset.limit, 10) || 0;
+      roomMaxParticipants = limit;
+      if (currentLimitBadge) {
+        currentLimitBadge.textContent = limit === 0 ? 'Unlimited' : `${limit} Peers`;
+      }
+    });
+  });
+
+  // Topbar Presence Pill -> Open Participants Roster Modal
+  const livePresencePill = document.getElementById('live-presence-pill');
+  const roomParticipantsModal = document.getElementById('room-participants-modal');
+  const btnCloseParticipantsModal = document.getElementById('btn-close-participants-modal');
+  const btnCloseParticipantsFooter = document.getElementById('btn-close-participants-footer');
+
+  if (livePresencePill) {
+    livePresencePill.addEventListener('click', () => {
+      if (roomParticipantsModal) {
+        renderPresenceUI();
+        roomParticipantsModal.style.display = 'flex';
+      }
+    });
+  }
+  if (btnCloseParticipantsModal) {
+    btnCloseParticipantsModal.onclick = () => {
+      if (roomParticipantsModal) roomParticipantsModal.style.display = 'none';
+    };
+  }
+  if (btnCloseParticipantsFooter) {
+    btnCloseParticipantsFooter.onclick = () => {
+      if (roomParticipantsModal) roomParticipantsModal.style.display = 'none';
+    };
+  }
+
+  // Admin Settings Modal (Change limit while in room)
+  const btnAdminSettings = document.getElementById('btn-admin-room-settings');
+  const adminSettingsModal = document.getElementById('admin-settings-modal');
+  const btnCloseAdminModal = document.getElementById('btn-close-admin-modal');
+  const btnCloseAdminFooter = document.getElementById('btn-close-admin-footer');
+  const adminModalPills = document.querySelectorAll('#admin-modal-limit-pills .btn-limit-pill');
+  const adminLimitStatusMsg = document.getElementById('admin-limit-status-msg');
+
+  if (btnAdminSettings) {
+    btnAdminSettings.addEventListener('click', () => {
+      if (adminSettingsModal) {
+        adminSettingsModal.style.display = 'flex';
+        adminModalPills.forEach(p => {
+          const lim = parseInt(p.dataset.limit, 10) || 0;
+          p.classList.toggle('active', lim === roomMaxParticipants);
+        });
+        if (adminLimitStatusMsg) adminLimitStatusMsg.textContent = '';
+      }
+    });
+  }
+
+  adminModalPills.forEach(pill => {
+    pill.addEventListener('click', () => {
+      adminModalPills.forEach(p => p.classList.remove('active'));
+      pill.classList.add('active');
+      const limit = parseInt(pill.dataset.limit, 10) || 0;
+      roomMaxParticipants = limit;
+      if (adminLimitStatusMsg) {
+        adminLimitStatusMsg.textContent = `✓ Room limit updated to ${limit === 0 ? 'Unlimited' : limit + ' participants'}`;
+      }
+      sendPacket({
+        type: 'ROOM_CONFIG_UPDATE',
+        maxParticipants: limit,
+        adminId: myClientId
+      });
+      renderPresenceUI();
+    });
+  });
+
+  if (btnCloseAdminModal) {
+    btnCloseAdminModal.onclick = () => {
+      if (adminSettingsModal) adminSettingsModal.style.display = 'none';
+    };
+  }
+  if (btnCloseAdminFooter) {
+    btnCloseAdminFooter.onclick = () => {
+      if (adminSettingsModal) adminSettingsModal.style.display = 'none';
+    };
   }
 });
