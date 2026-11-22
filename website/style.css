@@ -3739,3 +3739,150 @@ body.in-live-room .chat-input-bar .btn-chat-send {
   color: #8696a0;
   border: 1px solid rgba(134, 150, 160, 0.25);
 }
+
+/* =========================================================================
+   Top Bar Edit Name Pill & WhatsApp File Downloading Cards
+   ========================================================================= */
+.btn-edit-name-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 14px;
+  padding: 4px 10px;
+  color: #e9edef;
+  font-size: 0.78rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+}
+.btn-edit-name-pill:hover {
+  background: rgba(0, 168, 132, 0.2);
+  border-color: #00a884;
+  color: #00a884;
+}
+
+/* WhatsApp-Style File Downloading Bubble */
+.wa-download-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: rgba(32, 44, 51, 0.85);
+  border-radius: 10px;
+  padding: 10px 14px;
+  min-width: 260px;
+  max-width: 380px;
+}
+.wa-dl-spinner-wrap {
+  position: relative;
+  width: 44px;
+  height: 44px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.wa-dl-svg {
+  width: 44px;
+  height: 44px;
+  transform: rotate(-90deg);
+}
+.wa-dl-bg {
+  fill: none;
+  stroke: rgba(255, 255, 255, 0.12);
+  stroke-width: 3.5;
+}
+.wa-dl-fill {
+  fill: none;
+  stroke: #00a884;
+  stroke-width: 3.5;
+  stroke-linecap: round;
+  transition: stroke-dashoffset 0.15s ease, stroke-dasharray 0.15s ease;
+}
+.wa-dl-icon {
+  position: absolute;
+  font-size: 1.1rem;
+  color: #00a884;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.wa-dl-meta-info {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  overflow: hidden;
+}
+.wa-dl-filename {
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: #e9edef;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.wa-dl-status-text {
+  font-size: 0.74rem;
+  color: #8696a0;
+  white-space: nowrap;
+}
+.wa-dl-bar-track {
+  width: 100%;
+  height: 4px;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 2px;
+  overflow: hidden;
+  margin-top: 2px;
+}
+.wa-dl-bar-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #00a884, #25d366);
+  border-radius: 2px;
+  transition: width 0.15s ease;
+}
+.wa-file-badge {
+  display: inline-block;
+  padding: 1px 6px;
+  border-radius: 4px;
+  font-size: 0.65rem;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  margin-right: 6px;
+}
+.badge-pdf { background: rgba(239, 68, 68, 0.2); color: #f87171; border: 1px solid rgba(239, 68, 68, 0.3); }
+.badge-img { background: rgba(168, 85, 247, 0.2); color: #c084fc; border: 1px solid rgba(168, 85, 247, 0.3); }
+.badge-video { background: rgba(6, 182, 212, 0.2); color: #22d3ee; border: 1px solid rgba(6, 182, 212, 0.3); }
+.badge-audio { background: rgba(234, 179, 8, 0.2); color: #facc15; border: 1px solid rgba(234, 179, 8, 0.3); }
+.badge-archive { background: rgba(249, 115, 22, 0.2); color: #fb923c; border: 1px solid rgba(249, 115, 22, 0.3); }
+.badge-doc { background: rgba(59, 130, 246, 0.2); color: #60a5fa; border: 1px solid rgba(59, 130, 246, 0.3); }
+
+/* WhatsApp Zipped Folder Download Card */
+.wa-zip-card {
+  border: 1px solid rgba(249, 115, 22, 0.35) !important;
+  background: rgba(30, 41, 59, 0.85) !important;
+  padding: 10px 14px !important;
+}
+.btn-zip-download {
+  background: linear-gradient(135deg, #f97316, #ea580c) !important;
+  color: #ffffff !important;
+  font-weight: 700 !important;
+  font-size: 0.82rem !important;
+  padding: 6px 14px !important;
+  border-radius: 6px !important;
+  text-decoration: none !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 6px !important;
+  box-shadow: 0 2px 8px rgba(234, 88, 12, 0.4) !important;
+  transition: all 0.15s ease !important;
+  flex-shrink: 0 !important;
+}
+.btn-zip-download:hover {
+  background: linear-gradient(135deg, #fb923c, #f97316) !important;
+  transform: translateY(-1px) !important;
+}
+

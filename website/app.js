@@ -165,11 +165,25 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const clientType = window.isLynqDropNativeApp ? 'Native App' : 'Web';
     const tag = `${clientType} (${os} · ${browser})`;
+
+    // Generate or recall a memorable 4-character suffix (e.g. XY12, 4K89, 7Z2X)
+    let deviceSuffix = localStorage.getItem('lynqdrop-device-suffix');
+    if (!deviceSuffix) {
+      const chars = '23456789ABCDEFGHJKLMNPQRSTUVWXYZ';
+      deviceSuffix = '';
+      for (let i = 0; i < 4; i++) {
+        deviceSuffix += chars.charAt(Math.floor(Math.random() * chars.length));
+      }
+      localStorage.setItem('lynqdrop-device-suffix', deviceSuffix);
+    }
+
     const savedAlias = localStorage.getItem('lynqdrop-device-alias');
-    const defaultAlias = `${os} ${clientType}`;
+    const defaultAlias = `${os} ${clientType} #${deviceSuffix}`;
 
     return {
       name: savedAlias || defaultAlias,
+      defaultName: defaultAlias,
+      suffix: deviceSuffix,
       os,
       browser,
       clientType,
@@ -434,6 +448,68 @@ document.addEventListener('DOMContentLoaded', () => {
     if (btnLiveCopyLink) btnLiveCopyLink.onclick = copyRoomLink;
     const liveRoomBadge = document.getElementById('live-room-badge');
     if (liveRoomBadge) liveRoomBadge.onclick = copyRoomLink;
+
+    // User Profile Display Name & Suffix in Topbar
+    const myNameDisplay = document.getElementById('topbar-my-name-display');
+    if (myNameDisplay) {
+      myNameDisplay.textContent = myDevice.name;
+    }
+    const btnOpenEditName = document.getElementById('btn-open-edit-name');
+    const modalEditName = document.getElementById('edit-name-modal');
+    const inputEditProfileName = document.getElementById('input-edit-profile-name');
+    const defaultNamePreview = document.getElementById('default-device-name-preview');
+    const btnResetDefaultName = document.getElementById('btn-reset-default-name');
+    const btnCloseEditName = document.getElementById('btn-close-edit-name');
+    const btnCancelEditName = document.getElementById('btn-cancel-edit-name');
+    const btnSaveProfileName = document.getElementById('btn-save-profile-name');
+
+    if (btnOpenEditName && modalEditName && !btnOpenEditName._initialized) {
+      btnOpenEditName._initialized = true;
+      btnOpenEditName.addEventListener('click', () => {
+        if (inputEditProfileName) inputEditProfileName.value = myDevice.name;
+        if (defaultNamePreview) defaultNamePreview.textContent = myDevice.defaultName;
+        modalEditName.style.display = 'flex';
+        if (inputEditProfileName) setTimeout(() => inputEditProfileName.focus(), 60);
+      });
+    }
+    if (btnCloseEditName && modalEditName && !btnCloseEditName._initialized) {
+      btnCloseEditName._initialized = true;
+      btnCloseEditName.addEventListener('click', () => { modalEditName.style.display = 'none'; });
+    }
+    if (btnCancelEditName && modalEditName && !btnCancelEditName._initialized) {
+      btnCancelEditName._initialized = true;
+      btnCancelEditName.addEventListener('click', () => { modalEditName.style.display = 'none'; });
+    }
+    if (btnResetDefaultName && inputEditProfileName && !btnResetDefaultName._initialized) {
+      btnResetDefaultName._initialized = true;
+      btnResetDefaultName.addEventListener('click', () => {
+        inputEditProfileName.value = myDevice.defaultName;
+      });
+    }
+    if (btnSaveProfileName && modalEditName && !btnSaveProfileName._initialized) {
+      btnSaveProfileName._initialized = true;
+      btnSaveProfileName.addEventListener('click', () => {
+        const val = (inputEditProfileName?.value || '').trim();
+        const newName = val || myDevice.defaultName;
+        myDevice.name = newName;
+        localStorage.setItem('lynqdrop-device-alias', newName);
+        if (myNameDisplay) myNameDisplay.textContent = newName;
+        modalEditName.style.display = 'none';
+
+        // Broadcast alias update to all participants
+        sendPacket({
+          type: 'ALIAS_UPDATE',
+          senderId: myClientId,
+          alias: newName
+        }, true);
+
+        // Update self in roster and refresh presence UI
+        if (participantsRoster.has(myClientId)) {
+          participantsRoster.get(myClientId).alias = newName + ' (You)';
+        }
+        renderPresenceUI();
+      });
+    }
 
     const handleLeaveRoom = () => {
       if (confirm('Leave this room and terminate the session?')) {
@@ -705,9 +781,13 @@ document.addEventListener('DOMContentLoaded', () => {
         if (chatAttachPopup) chatAttachPopup.style.display = 'none';
         chatFolderInput.click();
       });
-      chatFolderInput.addEventListener('change', () => {
+      chatFolderInput.addEventListener('change', async () => {
         if (chatFolderInput.files && chatFolderInput.files.length > 0) {
-          sendLiveFiles(Array.from(chatFolderInput.files));
+          const rawFiles = Array.from(chatFolderInput.files);
+          const firstPath = rawFiles[0]?.webkitRelativePath;
+          const folderName = firstPath ? firstPath.split('/')[0] : 'Folder';
+          const zipped = await compressFolderToZip(rawFiles, folderName);
+          sendLiveFiles(zipped);
           chatFolderInput.value = '';
         }
       });
@@ -746,11 +826,14 @@ document.addEventListener('DOMContentLoaded', () => {
         e.preventDefault();
         if (chatDragOverlay) chatDragOverlay.style.display = 'none';
       });
-      chatFeedContainer.addEventListener('drop', (e) => {
+      chatFeedContainer.addEventListener('drop', async (e) => {
         e.preventDefault();
         if (chatDragOverlay) chatDragOverlay.style.display = 'none';
-        if (e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files.length > 0) {
-          sendLiveFiles(Array.from(e.dataTransfer.files));
+        if (e.dataTransfer) {
+          const files = await extractDroppedFiles(e.dataTransfer);
+          if (files && files.length > 0) {
+            sendLiveFiles(files);
+          }
         }
       });
     }
@@ -819,6 +902,329 @@ document.addEventListener('DOMContentLoaded', () => {
     window.lynqOpenPdf(item.url, item.name);
   };
 
+  // Folder Compression & Directory Scanner (Bundles directories into clean .zip)
+  async function compressFolderToZip(fileList, defaultFolderName = 'Folder') {
+    if (!fileList || fileList.length === 0) return [];
+    if (typeof JSZip === 'undefined') {
+      console.warn('[LynqDrop] JSZip not loaded, sending raw files');
+      return fileList;
+    }
+
+    const zip = new JSZip();
+    let rootFolder = defaultFolderName;
+    for (const f of fileList) {
+      const relPath = f.webkitRelativePath || f.name;
+      const parts = relPath.split('/');
+      if (parts.length > 1 && (!rootFolder || rootFolder === 'Folder')) {
+        rootFolder = parts[0];
+      }
+      zip.file(relPath, f);
+    }
+    const zipName = (rootFolder ? rootFolder.replace(/[\\/:*?"<>|]/g, '_') : 'Archive') + '.zip';
+
+    if (liveTransferBar) liveTransferBar.style.display = 'flex';
+    if (liveTransferLabel) liveTransferLabel.textContent = `Compressing ${zipName}...`;
+    if (liveTransferFill) liveTransferFill.style.width = '100%';
+    if (liveTransferStats) liveTransferStats.textContent = `Zipping folder...`;
+
+    try {
+      const zipBlob = await zip.generateAsync({
+        type: 'blob',
+        compression: 'DEFLATE',
+        compressionOptions: { level: 6 }
+      }, (metadata) => {
+        if (liveTransferStats) {
+          liveTransferStats.textContent = `Zipping ${Math.round(metadata.percent)}%`;
+        }
+      });
+
+      const zipFile = new File([zipBlob], zipName, { type: 'application/zip' });
+      zipFile.isZippedFolder = true;
+      if (liveTransferBar) liveTransferBar.style.display = 'none';
+      return [zipFile];
+    } catch (err) {
+      console.error('[LynqDrop] Zip compression failed:', err);
+      if (liveTransferBar) liveTransferBar.style.display = 'none';
+      return fileList;
+    }
+  }
+
+  async function scanDirectoryEntry(itemEntry) {
+    const files = [];
+    async function readEntry(entry, currentPath = '') {
+      if (entry.isFile) {
+        const file = await new Promise((res, rej) => entry.file(res, rej));
+        Object.defineProperty(file, 'webkitRelativePath', {
+          value: currentPath + entry.name,
+          writable: true
+        });
+        files.push(file);
+      } else if (entry.isDirectory) {
+        const reader = entry.createReader();
+        const entries = await new Promise((res, rej) => {
+          const results = [];
+          function readNext() {
+            reader.readEntries((batch) => {
+              if (!batch.length) return res(results);
+              results.push(...batch);
+              readNext();
+            }, rej);
+          }
+          readNext();
+        });
+        for (const child of entries) {
+          await readEntry(child, currentPath + entry.name + '/');
+        }
+      }
+    }
+    await readEntry(itemEntry);
+    return files;
+  }
+
+  async function extractDroppedFiles(dataTransfer) {
+    const files = [];
+    if (dataTransfer.items && dataTransfer.items.length > 0) {
+      for (let i = 0; i < dataTransfer.items.length; i++) {
+        const item = dataTransfer.items[i];
+        if (typeof item.webkitGetAsEntry === 'function') {
+          const entry = item.webkitGetAsEntry();
+          if (entry && entry.isDirectory) {
+            const dirFiles = await scanDirectoryEntry(entry);
+            if (dirFiles.length > 0) {
+              const zipped = await compressFolderToZip(dirFiles, entry.name);
+              files.push(...zipped);
+            }
+            continue;
+          }
+        }
+        const f = item.getAsFile ? item.getAsFile() : null;
+        if (f) files.push(f);
+      }
+      if (files.length > 0) return files;
+    }
+    return Array.from(dataTransfer.files || []);
+  }
+
+  // Fast SIMD / Batch Chunk Encoding/Decoding for zero-lag Wi-Fi streaming
+  function uint8ToBase64(u8) {
+    const CHUNK_SIZE = 0x8000; // 32 KiB slices
+    let result = '';
+    const len = u8.length;
+    for (let i = 0; i < len; i += CHUNK_SIZE) {
+      result += String.fromCharCode.apply(null, u8.subarray(i, Math.min(i + CHUNK_SIZE, len)));
+    }
+    return btoa(result);
+  }
+
+  function base64ToUint8(b64) {
+    const bin = atob(b64);
+    const len = bin.length;
+    const bytes = new Uint8Array(len);
+    for (let i = 0; i < len; i += 32768) {
+      const end = Math.min(i + 32768, len);
+      for (let j = i; j < end; j++) {
+        bytes[j] = bin.charCodeAt(j);
+      }
+    }
+    return bytes;
+  }
+
+  function getFileExtensionBadge(filename, mimeType) {
+    const ext = (filename && filename.includes('.') ? filename.split('.').pop() : '').toLowerCase();
+    if (ext === 'pdf' || mimeType === 'application/pdf') return { text: 'PDF', cls: 'badge-pdf' };
+    if (['jpg', 'jpeg', 'png', 'webp', 'gif', 'svg', 'bmp', 'avif'].includes(ext) || mimeType?.startsWith('image/')) return { text: ext ? ext.toUpperCase() : 'IMG', cls: 'badge-img' };
+    if (['mp4', 'webm', 'mov', 'mkv', 'avi'].includes(ext) || mimeType?.startsWith('video/')) return { text: ext ? ext.toUpperCase() : 'VID', cls: 'badge-video' };
+    if (['mp3', 'wav', 'ogg', 'm4a', 'aac', 'flac'].includes(ext) || mimeType?.startsWith('audio/')) return { text: ext ? ext.toUpperCase() : 'AUD', cls: 'badge-audio' };
+    if (['zip', 'rar', '7z', 'tar', 'gz'].includes(ext)) return { text: ext ? ext.toUpperCase() : 'ZIP', cls: 'badge-archive' };
+    return { text: ext ? ext.toUpperCase() : 'DOC', cls: 'badge-doc' };
+  }
+
+  function appendIncomingDownloadingCard({ sender, file, transferId }) {
+    if (!chatFeed) return;
+    let bubble = transferId ? chatFeed.querySelector(`[data-file-id="${CSS.escape(transferId)}"]`) : null;
+    if (bubble) return bubble;
+
+    bubble = document.createElement('div');
+    bubble.className = 'chat-bubble peer';
+    if (transferId) bubble.setAttribute('data-file-id', transferId);
+
+    const timeStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    const fileName = file.name || 'Incoming File';
+    const badge = getFileExtensionBadge(fileName, file.mimeType);
+
+    bubble.innerHTML = `
+      <span class="chat-bubble-sender">${escapeHtml(sender || 'Peer')}</span>
+      <div class="wa-download-card" id="card-${escapeHtml(transferId)}">
+        <div class="wa-dl-spinner-wrap">
+          <svg class="wa-dl-svg" viewBox="0 0 48 48">
+            <circle class="wa-dl-bg" cx="24" cy="24" r="20"></circle>
+            <circle class="wa-dl-fill" id="svg-fill-${escapeHtml(transferId)}" cx="24" cy="24" r="20" stroke-dasharray="125.66" stroke-dashoffset="125.66"></circle>
+          </svg>
+          <div class="wa-dl-icon">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 5v14M19 12l-7 7-7-7"/></svg>
+          </div>
+        </div>
+        <div class="wa-dl-meta-info">
+          <div class="wa-dl-filename" title="${escapeHtml(fileName)}">
+            <span class="wa-file-badge ${badge.cls}">${badge.text}</span>${escapeHtml(fileName)}
+          </div>
+          <div class="wa-dl-status-text" id="dl-status-${escapeHtml(transferId)}">0% · 0.0 MB/s (${formatBytes(file.size || 0)})</div>
+          <div class="wa-dl-bar-track">
+            <div class="wa-dl-bar-fill" id="dl-bar-${escapeHtml(transferId)}" style="width: 0%;"></div>
+          </div>
+        </div>
+      </div>
+      <div class="chat-bubble-footer">
+        <span class="chat-bubble-time">${timeStr}</span>
+      </div>
+    `;
+
+    chatFeed.appendChild(bubble);
+    chatFeed.scrollTop = chatFeed.scrollHeight;
+    return bubble;
+  }
+
+  function updateIncomingDownloadingCard({ transferId, receivedBytes, totalBytes, speedMBs }) {
+    if (!transferId) return;
+    const pct = totalBytes > 0 ? Math.min(100, Math.round((receivedBytes / totalBytes) * 100)) : 0;
+    const svgFill = document.getElementById(`svg-fill-${transferId}`);
+    if (svgFill) {
+      const circ = 125.66;
+      const offset = circ - (pct / 100) * circ;
+      svgFill.style.strokeDashoffset = offset;
+    }
+    const barFill = document.getElementById(`dl-bar-${transferId}`);
+    if (barFill) {
+      barFill.style.width = `${pct}%`;
+    }
+    const statusText = document.getElementById(`dl-status-${transferId}`);
+    if (statusText) {
+      statusText.textContent = `${pct}% · ${speedMBs} MB/s (${formatBytes(receivedBytes)} of ${formatBytes(totalBytes)})`;
+    }
+  }
+
+  function finalizeIncomingChatCard({ transferId, sender, file, downloadUrl, verified, rawBlob }) {
+    if (!chatFeed) return;
+    const bubble = transferId ? chatFeed.querySelector(`[data-file-id="${CSS.escape(transferId)}"]`) : null;
+    if (!bubble) {
+      appendChatFileCard({ sender, file, isMine: false, downloadUrl, verified, rawBlob, transferId });
+      return;
+    }
+
+    const timeStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    const fileName = file.name || 'File';
+    const isVoice = (file.isVoiceNote || fileName.toLowerCase().includes('voice-note') || (file.mimeType && file.mimeType.startsWith('audio/')) || fileName.match(/\.(webm|m4a|mp3|ogg|wav)$/i));
+    const isImage = (file.mimeType && file.mimeType.startsWith('image/')) || fileName.match(/\.(jpg|jpeg|png|webp|gif|svg|bmp|avif)$/i);
+    const isPdf = (file.mimeType === 'application/pdf') || fileName.toLowerCase().endsWith('.pdf');
+    const isVideo = (file.mimeType && file.mimeType.startsWith('video/')) || fileName.match(/\.(mp4|webm|mov|mkv)$/i);
+    const isZip = (file.mimeType && (file.mimeType === 'application/zip' || file.mimeType === 'application/x-zip-compressed')) || fileName.match(/\.(zip|7z|tar|gz|rar)$/i);
+
+    const srcUrl = downloadUrl || (rawBlob ? URL.createObjectURL(rawBlob) : null);
+    const mediaId = 'med_' + Math.random().toString(36).slice(2, 9);
+    if (srcUrl) {
+      activeMediaMap.set(mediaId, {
+        url: srcUrl,
+        name: fileName,
+        size: formatBytes(file.size),
+        blob: rawBlob
+      });
+    }
+
+    let contentHtml = '';
+    if (isVoice && srcUrl) {
+      contentHtml = `
+        <div class="chat-voice-card">
+          <div class="voice-mic-badge">🎙️</div>
+          <audio controls src="${srcUrl}" class="voice-audio-element" preload="metadata"></audio>
+        </div>
+      `;
+    } else if (isImage && srcUrl) {
+      contentHtml = `
+        <div class="chat-photo-card" data-media-id="${mediaId}">
+          <div class="photo-thumb-wrap" onclick="window.lynqOpenLightboxById('${mediaId}')" title="Tap to preview image">
+            <img src="${srcUrl}" alt="${escapeHtml(fileName)}" class="chat-thumbnail-img chat-photo-thumb" loading="lazy" />
+            <div class="photo-expand-badge">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.5"><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/></svg>
+              <span>Preview</span>
+            </div>
+          </div>
+          <div class="photo-overlay-info">
+            <span class="chat-file-name" title="${escapeHtml(fileName)}">${escapeHtml(fileName)} · ${formatBytes(file.size)}</span>
+            <div class="photo-card-actions">
+              <button type="button" class="btn-preview-inline" onclick="window.lynqOpenLightboxById('${mediaId}')" title="Preview Photo">👁️ View</button>
+              ${downloadUrl ? `<a href="${downloadUrl}" download="${escapeHtml(fileName)}" class="btn-file-download" title="Download">Save</a>` : ''}
+            </div>
+          </div>
+        </div>
+      `;
+    } else if (isPdf && srcUrl) {
+      contentHtml = `
+        <div class="chat-pdf-card" data-media-id="${mediaId}">
+          <div class="pdf-card-top">
+            <div class="pdf-card-icon">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#ef4444" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+              <span class="pdf-badge-tag">PDF</span>
+            </div>
+            <div class="pdf-card-details">
+              <div class="chat-file-name" title="${escapeHtml(fileName)}">${escapeHtml(fileName)}</div>
+              <div class="chat-file-size">${formatBytes(file.size)} ${verified ? '· Verified ✓' : ''}</div>
+            </div>
+          </div>
+          <div class="pdf-card-actions">
+            <button type="button" class="btn-pdf-preview" onclick="window.lynqOpenPdfById('${mediaId}')" title="Read PDF Document">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+              <span>Read PDF</span>
+            </button>
+            ${downloadUrl ? `<a href="${downloadUrl}" download="${escapeHtml(fileName)}" class="btn-file-download" title="Download">Save</a>` : ''}
+          </div>
+        </div>
+      `;
+    } else if (isVideo && srcUrl) {
+      contentHtml = `
+        <div class="chat-video-card">
+          <video controls playsinline preload="metadata" src="${srcUrl}" class="chat-inline-video"></video>
+          <div class="photo-overlay-info">
+            <span class="chat-file-name" title="${escapeHtml(fileName)}">${escapeHtml(fileName)} · ${formatBytes(file.size)}</span>
+            ${downloadUrl ? `<a href="${downloadUrl}" download="${escapeHtml(fileName)}" class="btn-file-download">Save</a>` : ''}
+          </div>
+        </div>
+      `;
+    } else if (isZip) {
+      contentHtml = `
+        <div class="chat-file-card wa-zip-card">
+          <div class="zip-icon-wrapper" style="font-size: 1.8rem; margin-right: 8px;">🗂️</div>
+          <div class="chat-file-info">
+            <div class="chat-file-name" title="${escapeHtml(fileName)}">
+              <span class="wa-file-badge badge-archive">ZIP</span>${escapeHtml(fileName)}
+            </div>
+            <div class="chat-file-size">${formatBytes(file.size)} ${verified ? '· Verified ✓' : ''}</div>
+          </div>
+          ${downloadUrl ? `<a href="${downloadUrl}" download="${escapeHtml(fileName)}" class="btn-file-download btn-zip-download" title="Download ZIP File">Download ZIP</a>` : ''}
+        </div>
+      `;
+    } else {
+      contentHtml = `
+        <div class="chat-file-card">
+          <span class="chat-file-icon">📄</span>
+          <div class="chat-file-info">
+            <div class="chat-file-name" title="${escapeHtml(fileName)}">${escapeHtml(fileName)}</div>
+            <div class="chat-file-size">${formatBytes(file.size)} ${verified ? '· Verified ✓' : ''}</div>
+          </div>
+          ${downloadUrl ? `<a href="${downloadUrl}" download="${escapeHtml(fileName)}" class="btn-file-download">Save</a>` : ''}
+        </div>
+      `;
+    }
+
+    bubble.innerHTML = `
+      <span class="chat-bubble-sender">${escapeHtml(sender || 'Peer')}</span>
+      ${contentHtml}
+      <div class="chat-bubble-footer">
+        <span class="chat-bubble-time">${timeStr}</span>
+      </div>
+    `;
+    chatFeed.scrollTop = chatFeed.scrollHeight;
+  }
+
   function appendChatFileCard({ sender, file, isMine, downloadUrl, verified, rawBlob, transferId }) {
     if (!chatFeed) return;
     const bubble = document.createElement('div');
@@ -833,6 +1239,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const isImage = (file.mimeType && file.mimeType.startsWith('image/')) || fileName.match(/\.(jpg|jpeg|png|webp|gif|svg|bmp|avif)$/i);
     const isPdf = (file.mimeType === 'application/pdf') || fileName.toLowerCase().endsWith('.pdf');
     const isVideo = (file.mimeType && file.mimeType.startsWith('video/')) || fileName.match(/\.(mp4|webm|mov|mkv)$/i);
+    const isZip = (file.mimeType && (file.mimeType === 'application/zip' || file.mimeType === 'application/x-zip-compressed')) || fileName.match(/\.(zip|7z|tar|gz|rar)$/i);
 
     const srcUrl = downloadUrl || (rawBlob ? URL.createObjectURL(rawBlob) : null);
     const mediaId = 'med_' + Math.random().toString(36).slice(2, 9);
@@ -903,6 +1310,19 @@ document.addEventListener('DOMContentLoaded', () => {
             <span class="chat-file-name" title="${escapeHtml(fileName)}">${escapeHtml(fileName)} · ${formatBytes(file.size)}</span>
             ${downloadUrl ? `<a href="${downloadUrl}" download="${escapeHtml(fileName)}" class="btn-file-download">Save</a>` : `<span class="file-send-status">Sending...</span>`}
           </div>
+        </div>
+      `;
+    } else if (isZip) {
+      contentHtml = `
+        <div class="chat-file-card wa-zip-card">
+          <div class="zip-icon-wrapper" style="font-size: 1.8rem; margin-right: 8px;">🗂️</div>
+          <div class="chat-file-info">
+            <div class="chat-file-name" title="${escapeHtml(fileName)}">
+              <span class="wa-file-badge badge-archive">ZIP</span>${escapeHtml(fileName)}
+            </div>
+            <div class="chat-file-size">${formatBytes(file.size)} ${verified ? '· Verified ✓' : ''}</div>
+          </div>
+          ${downloadUrl ? `<a href="${downloadUrl}" download="${escapeHtml(fileName)}" class="btn-file-download btn-zip-download" title="Download ZIP File">Download ZIP</a>` : `<span class="file-send-status">Sending...</span>`}
         </div>
       `;
     } else {
@@ -980,9 +1400,29 @@ document.addEventListener('DOMContentLoaded', () => {
       try { dc.binaryType = 'arraybuffer'; } catch (_) {}
     }
 
-    for (let i = 0; i < fileList.length; i++) {
-      const rawFile = fileList[i].rawFile || fileList[i];
-      const transferId = 'tx_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7);
+    // 1. Sort files by size ascending: smaller files are dispatched and finish first!
+    const sortedFiles = [...fileList].sort((a, b) => {
+      const sizeA = (a.rawFile || a).size || 0;
+      const sizeB = (b.rawFile || b).size || 0;
+      return sizeA - sizeB;
+    });
+
+    const totalBatchBytes = sortedFiles.reduce((acc, f) => acc + ((f.rawFile || f).size || 0), 0);
+    let totalBatchSent = 0;
+    const batchStartTime = Date.now();
+
+    if (liveTransferBar) liveTransferBar.style.display = 'flex';
+    if (liveTransferLabel) {
+      liveTransferLabel.textContent = sortedFiles.length === 1
+        ? `Sending ${sortedFiles[0].name}...`
+        : `Sending ${sortedFiles.length} files in parallel (${formatBytes(totalBatchBytes)})...`;
+    }
+
+    // 2. Transmit all files simultaneously in fully parallel streaming pipelines!
+    await Promise.all(sortedFiles.map(async (fileItem, i) => {
+      const rawFile = fileItem.rawFile || fileItem;
+      const transferId = 'tx_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7) + '_' + i;
+
       appendChatFileCard({
         sender: myDevice.name,
         file: { name: rawFile.name, size: rawFile.size, mimeType: rawFile.type, isVoiceNote: rawFile.isVoiceNote },
@@ -992,13 +1432,12 @@ document.addEventListener('DOMContentLoaded', () => {
         transferId
       });
 
-      if (liveTransferBar) liveTransferBar.style.display = 'flex';
-      if (liveTransferLabel) liveTransferLabel.textContent = `Sending ${rawFile.name}...`;
-
       sendPacket({
         type: 'FILE_START',
         transferId,
         fileIndex: i,
+        senderId: myClientId,
+        senderAlias: myDevice.name,
         name: rawFile.name,
         size: rawFile.size,
         mimeType: rawFile.type || 'application/octet-stream',
@@ -1006,11 +1445,11 @@ document.addEventListener('DOMContentLoaded', () => {
       });
 
       let offset = 0;
-      const startTime = Date.now();
-      const RELAY_CHUNK_SIZE = 32 * 1024; // 32 KiB chunks for smooth WebSocket streaming
-      const WEBRTC_CHUNK_SIZE = 128 * 1024; // 128 KiB high-throughput Wi-Fi chunks
-      const HIGH_BUF = 4 * 1024 * 1024; // 4 MiB backpressure ceiling
-      const LOW_BUF = 1 * 1024 * 1024;  // 1 MiB resume threshold
+      let chunkIdx = 0;
+      const RELAY_CHUNK_SIZE = 64 * 1024; // 64 KiB fast chunks
+      const WEBRTC_CHUNK_SIZE = 256 * 1024; // 256 KiB high-throughput Wi-Fi chunks
+      const HIGH_BUF = 8 * 1024 * 1024; // 8 MiB backpressure ceiling
+      const LOW_BUF = 2 * 1024 * 1024;  // 2 MiB resume threshold
 
       if (dc) {
         try { dc.bufferedAmountLowThreshold = LOW_BUF; } catch (_) {}
@@ -1018,6 +1457,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
       while (offset < rawFile.size) {
         const useP2P = webrtcConfirmed && hasP2P && dc && (dc.readyState === 'open');
+        const chunkSize = useP2P ? WEBRTC_CHUNK_SIZE : RELAY_CHUNK_SIZE;
+        const totalChunks = Math.ceil(rawFile.size / chunkSize);
+
         if (useP2P) {
           if (dc.bufferedAmount > HIGH_BUF) {
             await new Promise((resolve) => {
@@ -1046,6 +1488,8 @@ document.addEventListener('DOMContentLoaded', () => {
             type: 'CHUNK',
             transferId,
             fileIndex: i,
+            chunkIndex: chunkIdx,
+            totalChunks: totalChunks,
             chunk: buffer
           };
           for (const [peerId, conn] of activePeersMap.entries()) {
@@ -1062,36 +1506,40 @@ document.addEventListener('DOMContentLoaded', () => {
             try { activeConnection.send(chunkMsg); } catch (_) {}
           }
           offset += buffer.byteLength;
+          totalBatchSent += buffer.byteLength;
+          chunkIdx++;
         } else {
-          // High-throughput Relay streaming across all firewalls & NATs
+          // High-throughput Relay streaming with fast SIMD batch base64
           const slice = rawFile.slice(offset, offset + RELAY_CHUNK_SIZE);
           const buffer = await slice.arrayBuffer();
-          let binary = '';
-          const bytes = new Uint8Array(buffer);
-          const len = bytes.byteLength;
-          for (let b = 0; b < len; b++) {
-            binary += String.fromCharCode(bytes[b]);
-          }
-          const base64Data = btoa(binary);
+          const base64Data = uint8ToBase64(new Uint8Array(buffer));
 
           if (activeRelay && activeRelay.connected) {
             activeRelay.publish({
               type: 'CHUNK',
               transferId,
               fileIndex: i,
+              chunkIndex: chunkIdx,
+              totalChunks: totalChunks,
               chunk: base64Data,
               isBase64: true
             });
           }
-          offset += len;
-          await new Promise(r => setTimeout(r, 2));
+          offset += buffer.byteLength;
+          totalBatchSent += buffer.byteLength;
+          chunkIdx++;
         }
 
-        const pct = Math.min(100, Math.round((offset / rawFile.size) * 100));
+        const pct = totalBatchBytes > 0 ? Math.min(100, Math.round((totalBatchSent / totalBatchBytes) * 100)) : 100;
         if (liveTransferFill) liveTransferFill.style.width = `${pct}%`;
-        const elapsed = (Date.now() - startTime) / 1000;
-        const speed = elapsed > 0 ? (offset / elapsed / (1024 * 1024)).toFixed(1) : '0.0';
+        const elapsed = (Date.now() - batchStartTime) / 1000;
+        const speed = elapsed > 0 ? (totalBatchSent / elapsed / (1024 * 1024)).toFixed(1) : '0.0';
         if (liveTransferStats) liveTransferStats.textContent = `${pct}% · ${speed} MB/s`;
+
+        // Micro-yield to allow concurrent parallel chunk streams to interleave smoothly
+        if (sortedFiles.length > 1) {
+          await new Promise(r => setTimeout(r, 0));
+        }
       }
 
       const sha256 = await computeBlobOrFileSHA256(rawFile);
@@ -1102,65 +1550,103 @@ document.addEventListener('DOMContentLoaded', () => {
         name: rawFile.name,
         sha256
       });
-    }
+    }));
 
     sendPacket({ type: 'ALL_COMPLETE' });
     if (liveTransferBar) {
-      setTimeout(() => { liveTransferBar.style.display = 'none'; }, 1200);
+      setTimeout(() => { liveTransferBar.style.display = 'none'; }, 1500);
     }
   }
 
-  let liveSink = null;
-  let liveTotalExpected = 0;
-  let liveBytesReceived = 0;
-  let liveFileStartTime = Date.now();
+  // Active Multi-File Sinks Map for Parallel Receiving
+  const activeSinksMap = new Map(); // key: transferId, value: { sink, meta, totalExpected, bytesReceived, startTime }
+  let totalIncomingBatchExpected = 0;
+  let totalIncomingBatchReceived = 0;
+  let incomingBatchStartTime = Date.now();
 
   async function handleIncomingFileData(msg, senderName) {
     if (!msg) return;
 
     if (msg.type === 'FILE_START') {
-      liveSink = new FileStreamSink(msg);
-      await liveSink.initialize();
-      liveTotalExpected = msg.size || 0;
-      liveBytesReceived = 0;
-      liveFileStartTime = Date.now();
+      const sink = new FileStreamSink(msg);
+      await sink.initialize();
+      const transferId = msg.transferId || ('tx_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7));
+
+      if (activeSinksMap.size === 0) {
+        totalIncomingBatchExpected = 0;
+        totalIncomingBatchReceived = 0;
+        incomingBatchStartTime = Date.now();
+      }
+      totalIncomingBatchExpected += (msg.size || 0);
+
+      activeSinksMap.set(transferId, {
+        sink,
+        meta: msg,
+        totalExpected: msg.size || 0,
+        bytesReceived: 0,
+        startTime: Date.now()
+      });
+
+      // Immediately render WhatsApp downloading card inside the chat feed!
+      appendIncomingDownloadingCard({
+        sender: senderName || 'Peer',
+        file: { name: msg.name, size: msg.size, mimeType: msg.mimeType, isVoiceNote: msg.isVoiceNote },
+        transferId
+      });
 
       if (liveTransferBar) liveTransferBar.style.display = 'flex';
-      if (liveTransferLabel) liveTransferLabel.textContent = `Receiving ${msg.name}...`;
+      if (liveTransferLabel) {
+        liveTransferLabel.textContent = activeSinksMap.size === 1
+          ? `Receiving ${msg.name}...`
+          : `Receiving ${activeSinksMap.size} files in parallel...`;
+      }
       if (liveTransferFill) liveTransferFill.style.width = '0%';
       if (liveTransferStats) liveTransferStats.textContent = '0% · 0.0 MB/s';
     } else if (msg.type === 'CHUNK') {
-      if (liveSink) {
+      const transferId = msg.transferId || (activeSinksMap.keys().next().value);
+      const item = activeSinksMap.get(transferId);
+      if (item) {
         let chunkData = msg.chunk;
         if (typeof chunkData === 'string' && msg.isBase64) {
-          const binaryStr = atob(chunkData);
-          const len = binaryStr.length;
-          const bytes = new Uint8Array(len);
-          for (let i = 0; i < len; i++) {
-            bytes[i] = binaryStr.charCodeAt(i);
-          }
-          chunkData = bytes.buffer;
+          chunkData = base64ToUint8(chunkData).buffer;
         }
-        await liveSink.writeChunk(chunkData);
-        liveBytesReceived += (chunkData.byteLength || chunkData.length || 0);
+        await item.sink.writeChunk(chunkData, msg.chunkIndex);
+        const len = (chunkData.byteLength || chunkData.length || 0);
+        item.bytesReceived += len;
+        totalIncomingBatchReceived += len;
 
-        const pct = liveTotalExpected > 0 ? Math.min(100, Math.round((liveBytesReceived / liveTotalExpected) * 100)) : 0;
-        if (liveTransferFill) liveTransferFill.style.width = `${pct}%`;
-        const elapsed = (Date.now() - liveFileStartTime) / 1000;
-        const speed = elapsed > 0.5 ? (liveBytesReceived / elapsed / (1024 * 1024)).toFixed(1) : '0.0';
-        if (liveTransferStats) liveTransferStats.textContent = `${pct}% · ${speed} MB/s`;
+        const filePct = item.totalExpected > 0 ? Math.min(100, Math.round((item.bytesReceived / item.totalExpected) * 100)) : 0;
+        const fileElapsed = (Date.now() - item.startTime) / 1000;
+        const fileSpeed = fileElapsed > 0.3 ? (item.bytesReceived / fileElapsed / (1024 * 1024)).toFixed(1) : '0.0';
+
+        // Real-time WhatsApp circular progress and status update
+        updateIncomingDownloadingCard({
+          transferId,
+          receivedBytes: item.bytesReceived,
+          totalBytes: item.totalExpected,
+          speedMBs: fileSpeed
+        });
+
+        const overallPct = totalIncomingBatchExpected > 0 ? Math.min(100, Math.round((totalIncomingBatchReceived / totalIncomingBatchExpected) * 100)) : filePct;
+        const overallElapsed = (Date.now() - incomingBatchStartTime) / 1000;
+        const overallSpeed = overallElapsed > 0.3 ? (totalIncomingBatchReceived / overallElapsed / (1024 * 1024)).toFixed(1) : fileSpeed;
+
+        if (liveTransferFill) liveTransferFill.style.width = `${overallPct}%`;
+        if (liveTransferStats) liveTransferStats.textContent = `${overallPct}% · ${overallSpeed} MB/s`;
       }
     } else if (msg.type === 'FILE_END') {
-      if (liveSink) {
-        const currentSinkMeta = { ...liveSink.meta };
-        const currentSink = liveSink;
-        liveSink = null;
-
-        const res = await currentSink.finalize();
+      const transferId = msg.transferId || (activeSinksMap.keys().next().value);
+      const item = activeSinksMap.get(transferId);
+      if (item) {
+        activeSinksMap.delete(transferId);
+        const currentSinkMeta = { ...item.meta };
+        const res = await item.sink.finalize();
         const recSha256 = await computeBlobOrFileSHA256(res.file);
         const verified = (!msg.sha256 || recSha256 === msg.sha256);
 
-        appendChatFileCard({
+        // Morph downloading bubble into completed preview card
+        finalizeIncomingChatCard({
+          transferId,
           sender: senderName || 'Peer',
           file: {
             name: currentSinkMeta.name,
@@ -1168,17 +1654,15 @@ document.addEventListener('DOMContentLoaded', () => {
             mimeType: currentSinkMeta.mimeType,
             isVoiceNote: currentSinkMeta.isVoiceNote
           },
-          isMine: false,
           downloadUrl: res.url,
           verified,
-          rawBlob: res.file,
-          transferId: currentSinkMeta.transferId || msg.transferId
+          rawBlob: res.file
         });
 
         // Send delivery acknowledgment back so sender updates single ✓ to Double Blue Tick ✓✓
         sendPacket({
           type: 'FILE_ACK',
-          transferId: currentSinkMeta.transferId || msg.transferId,
+          transferId,
           name: currentSinkMeta.name
         });
 
@@ -1197,6 +1681,10 @@ document.addEventListener('DOMContentLoaded', () => {
           document.body.appendChild(a);
           a.click();
           document.body.removeChild(a);
+        }
+
+        if (activeSinksMap.size === 0 && liveTransferBar) {
+          setTimeout(() => { liveTransferBar.style.display = 'none'; }, 1500);
         }
       }
     } else if (msg.type === 'ALL_COMPLETE') {
@@ -1387,83 +1875,34 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   // =========================================================================
-  // 8. DIRECT-TO-DISK RECEIVER STREAMING SINK
+  // 8. ULTRA-FAST HIGH-THROUGHPUT RECEIVER STREAMING SINK (In-Memory Parallel Assembly)
   // =========================================================================
   class FileStreamSink {
     constructor(fileMeta) {
       this.meta = fileMeta;
-      this.writable = null;
-      this.fileHandle = null;
-      this.opfsHandle = null;
-      this.fallbackParts = [];
+      this.chunks = [];
       this.totalWritten = 0;
-      this.sinkType = 'fallback';
+      this.totalExpected = fileMeta.size || 0;
     }
 
     async initialize() {
-      // 1. Try File System Access API
-      if (typeof window !== 'undefined' && 'showSaveFilePicker' in window) {
-        try {
-          const ext = this.meta.name.includes('.') ? this.meta.name.split('.').pop() : '';
-          const pickerOptions = {
-            suggestedName: this.meta.name,
-            types: ext ? [{
-              description: `${ext.toUpperCase()} File`,
-              accept: { [this.meta.mimeType || 'application/octet-stream']: [`.${ext}`] }
-            }] : []
-          };
-          this.fileHandle = await window.showSaveFilePicker(pickerOptions);
-          this.writable = await this.fileHandle.createWritable();
-          this.sinkType = 'fsa';
-          return;
-        } catch (_) { }
-      }
-
-      // 2. Try OPFS
-      if (typeof navigator !== 'undefined' && navigator.storage && navigator.storage.getDirectory) {
-        try {
-          const root = await navigator.storage.getDirectory();
-          const safeName = `lynqdrop_${Date.now()}_${this.meta.name.replace(/[^a-zA-Z0-9._-]/g, '_')}`;
-          this.opfsHandle = await root.getFileHandle(safeName, { create: true });
-          this.writable = await this.opfsHandle.createWritable();
-          this.sinkType = 'opfs';
-          return;
-        } catch (_) { }
-      }
-
-      // 3. Fallback to memory blob parts
-      this.sinkType = 'fallback';
-      this.fallbackParts = [];
+      this.chunks = [];
+      this.totalWritten = 0;
     }
 
-    async writeChunk(chunk) {
-      this.totalWritten += chunk.byteLength || chunk.length || 0;
-      if (this.writable) {
-        await this.writable.write(chunk);
+    async writeChunk(chunk, chunkIndex) {
+      const len = chunk.byteLength || chunk.length || 0;
+      this.totalWritten += len;
+      if (typeof chunkIndex === 'number') {
+        this.chunks[chunkIndex] = chunk;
       } else {
-        this.fallbackParts.push(new Blob([chunk]));
+        this.chunks.push(chunk);
       }
     }
 
     async finalize() {
-      if (this.writable) {
-        await this.writable.close();
-        this.writable = null;
-      }
-
-      if (this.sinkType === 'fsa' && this.fileHandle) {
-        const file = await this.fileHandle.getFile();
-        return { file, directSaved: true, url: null };
-      }
-
-      if (this.sinkType === 'opfs' && this.opfsHandle) {
-        const file = await this.opfsHandle.getFile();
-        const url = URL.createObjectURL(file);
-        return { file, directSaved: false, url };
-      }
-
-      const blob = new Blob(this.fallbackParts, { type: this.meta.mimeType || 'application/octet-stream' });
-      this.fallbackParts = [];
+      const blob = new Blob(this.chunks, { type: this.meta.mimeType || 'application/octet-stream' });
+      this.chunks = [];
       const url = URL.createObjectURL(blob);
       return { file: blob, directSaved: false, url };
     }
@@ -1879,6 +2318,20 @@ document.addEventListener('DOMContentLoaded', () => {
         });
         renderPresenceUI();
       }
+    } else if (msg.type === 'ALIAS_UPDATE') {
+      if (msg.senderId) {
+        if (participantsRoster.has(msg.senderId)) {
+          const p = participantsRoster.get(msg.senderId);
+          p.alias = msg.alias;
+        }
+        if (remoteDevice && remoteDevice.id === msg.senderId) {
+          remoteDevice.name = msg.alias;
+        }
+        renderPresenceUI();
+        if (livePeerName && !isSenderRole) {
+          livePeerName.textContent = msg.alias;
+        }
+      }
     } else if (msg.type === 'ROOM_CONFIG_UPDATE') {
       if (typeof msg.maxParticipants === 'number') {
         roomMaxParticipants = msg.maxParticipants;
@@ -2284,10 +2737,13 @@ document.addEventListener('DOMContentLoaded', () => {
       }, false);
     });
 
-    dropzone.addEventListener('drop', (e) => {
+    dropzone.addEventListener('drop', async (e) => {
       const dt = e.dataTransfer;
-      if (dt && dt.files && dt.files.length > 0) {
-        addFilesToQueue(Array.from(dt.files));
+      if (dt) {
+        const files = await extractDroppedFiles(dt);
+        if (files && files.length > 0) {
+          addFilesToQueue(files);
+        }
       }
     });
   }
@@ -2301,9 +2757,13 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   if (folderInput) {
-    folderInput.addEventListener('change', () => {
+    folderInput.addEventListener('change', async () => {
       if (folderInput.files && folderInput.files.length > 0) {
-        addFilesToQueue(Array.from(folderInput.files));
+        const rawFiles = Array.from(folderInput.files);
+        const firstPath = rawFiles[0]?.webkitRelativePath;
+        const folderName = firstPath ? firstPath.split('/')[0] : 'Folder';
+        const zipped = await compressFolderToZip(rawFiles, folderName);
+        addFilesToQueue(zipped);
       }
     });
   }
