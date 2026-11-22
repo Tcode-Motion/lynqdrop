@@ -23,7 +23,7 @@
   <link rel="manifest" href="./manifest.webmanifest">
   <meta name="theme-color" content="#080b14">
 
-  <link rel="stylesheet" href="./style.css?v=2.9.2">
+  <link rel="stylesheet" href="./style.css?v=3.0.0">
 
   <script type="application/ld+json">
   {
@@ -514,6 +514,27 @@
           </div>
         </div>
 
+        <!-- Desktop Webcam Viewfinder Modal -->
+        <div id="webcam-modal" class="webcam-modal" style="display: none;">
+          <div class="webcam-card">
+            <div class="webcam-header">
+              <span class="webcam-title">📷 Take Photo</span>
+              <button type="button" class="webcam-close-btn" id="btn-close-webcam">&times;</button>
+            </div>
+            <div class="webcam-viewfinder-wrap">
+              <video id="webcam-video" autoplay playsinline muted></video>
+              <canvas id="webcam-canvas" style="display: none;"></canvas>
+            </div>
+            <div class="webcam-actions">
+              <button type="button" class="btn-webcam-cancel" id="btn-webcam-cancel">Cancel</button>
+              <button type="button" class="btn-webcam-snap" id="btn-webcam-snap">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="3" fill="currentColor"/></svg>
+                Snap &amp; Send
+              </button>
+            </div>
+          </div>
+        </div>
+
         <!-- Active Transfer Monitor -->
         <div id="active-transfer-card" class="active-transfer-container" style="display: none;">
           <div class="monitor-header">
@@ -800,8 +821,9 @@
   </div>
 
   <!-- Scripts (Versioned for Instant Cache Busting) -->
+  <script src="./mqtt.min.js?v=3.0.0"></script>
   <script src="./peerjs.min.js?v=2.6.0"></script>
   <script src="./qrcode.min.js?v=2.7.4"></script>
-  <script src="./app.js?v=2.9.2"></script>
+  <script src="./app.js?v=3.0.0"></script>
 </body>
 </html>
