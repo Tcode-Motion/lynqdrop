@@ -801,17 +801,21 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     } else if (msg.type === 'FILE_END') {
       if (liveSink) {
-        const res = await liveSink.finalize();
+        const currentSinkMeta = { ...liveSink.meta };
+        const currentSink = liveSink;
+        liveSink = null;
+
+        const res = await currentSink.finalize();
         const recSha256 = await computeBlobOrFileSHA256(res.file);
         const verified = (!msg.sha256 || recSha256 === msg.sha256);
 
         appendChatFileCard({
           sender: senderName || 'Peer',
           file: {
-            name: liveSink.meta.name,
-            size: liveSink.meta.size,
-            mimeType: liveSink.meta.mimeType,
-            isVoiceNote: liveSink.meta.isVoiceNote
+            name: currentSinkMeta.name,
+            size: currentSinkMeta.size,
+            mimeType: currentSinkMeta.mimeType,
+            isVoiceNote: currentSinkMeta.isVoiceNote
           },
           isMine: false,
           downloadUrl: res.url,
@@ -819,16 +823,15 @@ document.addEventListener('DOMContentLoaded', () => {
           rawBlob: res.file
         });
 
-        // Auto trigger download for frictionless mobile & desktop receive
-        if (res.url && !res.directSaved) {
+        // Auto trigger download for frictionless mobile & desktop receive (skip voice notes from auto-downloading)
+        if (res.url && !res.directSaved && !currentSinkMeta.isVoiceNote) {
           const a = document.createElement('a');
           a.href = res.url;
-          a.download = liveSink.meta.name;
+          a.download = currentSinkMeta.name;
           document.body.appendChild(a);
           a.click();
           document.body.removeChild(a);
         }
-        liveSink = null;
       }
     } else if (msg.type === 'ALL_COMPLETE') {
       if (liveTransferBar) {
