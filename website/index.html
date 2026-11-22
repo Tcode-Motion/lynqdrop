@@ -1,0 +1,804 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>LynqDrop - Fast, Private Local &amp; Browser File Sharing</title>
+  <meta name="description" content="LynqDrop provides direct, end-to-end encrypted file sharing across Android, Windows, macOS, Linux, and any web browser. Zero cloud storage, zero accounts, and unlimited transfer speed.">
+  <meta name="keywords" content="file sharing, WebRTC P2P, local file transfer, Android file share, Windows file transfer, browser file sharing, no install file transfer, LynqDrop">
+  <link rel="canonical" href="https://lynqdrop.web.app/">
+
+  <!-- Open Graph / Social Meta -->
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="https://lynqdrop.web.app/">
+  <meta property="og:title" content="LynqDrop - Fast, Private Local &amp; Browser File Sharing">
+  <meta property="og:description" content="Direct device-to-device and browser-to-browser file sharing. Zero cloud storage, end-to-end encrypted DataChannels, zero accounts.">
+  <meta property="og:image" content="https://lynqdrop.web.app/assets/lynqdrop_horizontal.png">
+
+  <!-- Favicon & PWA -->
+  <link rel="icon" type="image/x-icon" href="./assets/logo.ico">
+  <link rel="icon" type="image/png" sizes="32x32" href="./assets/logo-32.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="./assets/logo-16.png">
+  <link rel="apple-touch-icon" sizes="180x180" href="./assets/logo-256.png">
+  <link rel="manifest" href="./manifest.webmanifest">
+  <meta name="theme-color" content="#080b14">
+
+  <link rel="stylesheet" href="./style.css?v=2.6.0">
+
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "SoftwareApplication",
+    "name": "LynqDrop",
+    "operatingSystem": "Android, Windows, macOS, Linux, Web",
+    "applicationCategory": "UtilitiesApplication",
+    "offers": {
+      "@type": "Offer",
+      "price": "0",
+      "priceCurrency": "USD"
+    },
+    "description": "Fast, private file sharing across Android, Windows, macOS, Linux, and web browsers with zero cloud reliance."
+  }
+  </script>
+</head>
+<body>
+
+  <!-- Site Navigation -->
+  <header class="site-header">
+    <div class="container nav-wrap">
+      <a href="./" class="logo-link">
+        <img src="./assets/logo-128.png" alt="LynqDrop Logo" class="logo-img">
+        <span class="brand-name">LynqDrop</span>
+      </a>
+      
+      <nav class="nav-menu">
+        <ul class="nav-links">
+          <li><a href="#sharing-hub">Share</a></li>
+          <li><a href="#features">Features</a></li>
+          <li><a href="#how-it-works">Architecture</a></li>
+          <li><a href="#download">Downloads</a></li>
+          <li><a href="#faq">FAQ</a></li>
+        </ul>
+      </nav>
+
+      <div class="nav-actions">
+        <button id="nav-diag-badge" class="nav-diag-pill" title="View Real-Time Connection Diagnostics">
+          <span class="status-indicator"></span>
+          <span id="nav-diag-text">P2P Online</span>
+        </button>
+
+        <button id="theme-toggle-btn" class="theme-btn" aria-label="Toggle Theme" title="Toggle Theme">
+          <svg id="theme-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+        </button>
+
+        <a href="#download" class="btn-primary-sm get-app-btn">Get App</a>
+      </div>
+    </div>
+  </header>
+
+  <main>
+    <!-- Hero Section (Hidden automatically when joining a room via QR code/link on mobile) -->
+    <section class="hero-section" id="hero-banner">
+      <div class="container">
+        <div class="hero-badge">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+          <span>100% Peer-to-Peer · Zero Cloud Storage · No Accounts</span>
+        </div>
+        <h1>Share files directly between your devices.</h1>
+        <p class="hero-subtitle">
+          Transfer documents, media, and text directly between your phone, PC, and browser over local Wi-Fi or across the internet with <strong>zero server file storage</strong>.
+        </p>
+      </div>
+    </section>
+
+    <!-- Main File Sharing Studio (Single Unified Experience) -->
+    <section class="workspace-section container" id="sharing-hub">
+      <div class="workspace-card">
+        
+        <!-- Mobile Native App Handoff Banner -->
+        <div id="mobile-app-banner" class="mobile-app-banner" style="display: none;">
+          <div class="app-banner-content">
+            <span class="app-banner-emoji">📲</span>
+            <div class="app-banner-info">
+              <span class="app-banner-title">LynqDrop Native App</span>
+              <span class="app-banner-sub">Open directly in app for fastest hardware speed</span>
+            </div>
+          </div>
+          <a id="btn-open-in-app" href="#" class="btn-app-open">Open App</a>
+        </div>
+
+        <!-- Live Cross-Platform Auto-Detection Connection Badge -->
+        <div id="platform-connection-card" class="platform-connection-card" style="display: none;">
+          <div class="platform-entity local-entity">
+            <span class="entity-icon" id="local-entity-icon">💻</span>
+            <div class="entity-meta">
+              <span class="entity-name" id="local-entity-name">My Device</span>
+              <span class="entity-type" id="local-entity-type">Web Browser</span>
+            </div>
+          </div>
+          <div class="platform-bridge">
+            <span class="bridge-status-line"></span>
+            <span class="bridge-badge" id="bridge-badge">🔒 Direct P2P Encrypted</span>
+          </div>
+          <div class="platform-entity remote-entity">
+            <span class="entity-icon" id="remote-entity-icon">📱</span>
+            <div class="entity-meta">
+              <span class="entity-name" id="remote-entity-name">Remote Peer</span>
+              <span class="entity-type" id="remote-entity-type">Detecting...</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Primary Action Navigation (Send / Receive / Quick Text) -->
+        <div class="subview-bar">
+          <div class="subview-buttons">
+            <button type="button" class="subview-btn active" id="subview-btn-send" onclick="switchBrowserShareSubView('send')">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 19V5M5 12l7-7 7 7"/></svg>
+              <span>Send Files</span>
+            </button>
+            <button type="button" class="subview-btn" id="subview-btn-receive" onclick="switchBrowserShareSubView('receive')">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12l7 7 7-7"/></svg>
+              <span>Receive Files</span>
+            </button>
+            <button type="button" class="subview-btn" id="subview-btn-text" onclick="switchBrowserShareSubView('text')">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+              <span>Quick Chat</span>
+            </button>
+          </div>
+          
+          <div class="device-alias-group">
+            <label for="my-device-alias">My Device:</label>
+            <input type="text" id="my-device-alias" class="alias-input" placeholder="Device Name" maxlength="24">
+          </div>
+        </div>
+
+        <!-- =================================================================== -->
+        <!-- TAB 1: SEND FILES                                                  -->
+        <!-- =================================================================== -->
+        <div id="subview-card-send" class="subview-card active">
+          
+          <!-- Dropzone -->
+          <div id="web-dropzone" class="dropzone-area">
+            <input type="file" id="web-file-input" multiple style="display:none;">
+            <input type="file" id="web-folder-input" webkitdirectory directory multiple style="display:none;">
+            
+            <div class="dropzone-icon-circle">
+              <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+            </div>
+            <h3 class="dropzone-title">Drag &amp; drop files here, or tap to choose</h3>
+            <p class="dropzone-desc">Encrypted WebRTC DataChannel · Unlimited file size · Zero cloud storage</p>
+            
+            <div class="dropzone-actions-row">
+              <button type="button" class="btn-primary" onclick="document.getElementById('web-file-input').click()">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>
+                Choose Files
+              </button>
+              <button type="button" class="btn-secondary" onclick="document.getElementById('web-folder-input').click()">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+                Choose Folder
+              </button>
+            </div>
+          </div>
+
+          <!-- Room Security & Access Controls -->
+          <div class="room-security-card">
+            <div class="security-controls-row">
+              <div class="security-toggle-group">
+                <label class="switch-label">
+                  <input type="checkbox" id="toggle-require-pin">
+                  <span class="switch-slider"></span>
+                  <span class="switch-text">Require PIN to Access</span>
+                </label>
+                <div id="pin-input-container" style="display: none; margin-left: 10px;">
+                  <input type="text" id="input-sender-pin" class="pin-textbox" placeholder="PIN (4 digits)" maxlength="6">
+                </div>
+              </div>
+
+              <div class="scope-select-group">
+                <label for="select-room-scope" style="font-size: 0.82rem; color: var(--text-muted);">Access Scope:</label>
+                <select id="select-room-scope" class="scope-dropdown">
+                  <option value="global">Worldwide (WebRTC P2P)</option>
+                  <option value="local">Local Wi-Fi Only</option>
+                </select>
+              </div>
+            </div>
+          </div>
+
+          <!-- Selected Files List -->
+          <div id="selected-files-card" class="selected-files-container" style="display: none;">
+            <div class="files-header-row">
+              <h4 style="font-size: 0.95rem; font-weight: 700;">Files Ready to Share (<span id="selected-files-count">0</span>)</h4>
+              <div style="display: flex; gap: 8px; align-items: center;">
+                <span id="selected-files-total-size" class="badge-size">0 B</span>
+                <button type="button" class="btn-secondary-sm" onclick="document.getElementById('web-file-input').click()">+ Add</button>
+                <button type="button" class="btn-secondary-sm" id="btn-clear-selected-files">Clear</button>
+              </div>
+            </div>
+            <div id="selected-files-list" class="selected-files-list"></div>
+          </div>
+
+          <!-- Active Sharing Room Code & QR -->
+          <div id="sharing-room-card" class="sharing-room-container">
+            <div class="room-grid">
+              <div class="qr-canvas-wrapper" id="room-qr-holder">
+                <!-- QR Code Rendered Here -->
+              </div>
+              <div class="room-info-column">
+                <div class="connection-status-pill">
+                  <span class="status-indicator"></span>
+                  <span id="room-status-label">Room Active · Waiting for Receiver</span>
+                </div>
+                
+                <div class="room-code-display-box">
+                  <span class="code-header-text">6-CHARACTER ROOM CODE</span>
+                  <div class="code-value" id="room-code-display">LD-------</div>
+                  <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+                    <button type="button" class="btn-secondary-sm" id="btn-copy-code">Copy Code</button>
+                    <button type="button" class="btn-secondary-sm" id="btn-copy-share-url">Copy Share Link</button>
+                  </div>
+                </div>
+
+                <div class="share-link-row">
+                  <input type="text" id="share-url-field" readonly class="share-url-textbox">
+                </div>
+                
+                <div class="security-notice">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+                  <span>Direct WebRTC DataChannel connection with end-to-end DTLS/SCTP encryption.</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- =================================================================== -->
+        <!-- TAB 2: RECEIVE FILES                                               -->
+        <!-- =================================================================== -->
+        <div id="subview-card-receive" class="subview-card" style="display: none;">
+          <div class="receive-hero">
+            <div class="receive-icon-circle">
+              <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            </div>
+            
+            <h3 class="receive-heading" id="receive-heading-text">Receive Files Directly</h3>
+            <p class="receive-desc" id="receive-desc-text">Enter the 6-character room code from the sender, or scan their QR code to connect automatically.</p>
+            
+            <div class="room-input-row" id="room-input-container">
+              <input type="text" id="input-join-room-code" placeholder="ENTER ROOM CODE (E.G. LD-8492)" maxlength="12" autocomplete="off" autocapitalize="characters" class="room-code-textbox">
+              <button type="button" class="btn-primary" id="btn-join-room">
+                Connect &amp; Receive ➔
+              </button>
+            </div>
+
+            <!-- PIN Challenge Box (Only shown if sender required PIN) -->
+            <div id="pin-challenge-card" class="pin-challenge-box" style="display: none;">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="color: var(--accent-warn); margin-bottom: 8px;"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+              <h4>This room requires a PIN</h4>
+              <p style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 12px;">Enter the 4-digit PIN provided by the sender to unlock files:</p>
+              <div style="display: flex; gap: 8px; justify-content: center;">
+                <input type="password" id="input-verify-pin" class="pin-textbox" placeholder="PIN" maxlength="6" style="width: 120px; text-align: center; font-size: 1.1rem; letter-spacing: 0.2em;">
+                <button type="button" class="btn-primary-sm" id="btn-submit-pin">Unlock</button>
+              </div>
+              <div id="pin-error-text" style="display:none; color: var(--accent-danger); font-size: 0.8rem; margin-top: 8px;"></div>
+            </div>
+
+            <!-- Connection Status -->
+            <div id="receive-status-box" class="connection-status-pill" style="display: none; margin: 14px auto;">
+              <span class="status-indicator"></span>
+              <span id="receive-status-text">Connecting to sender...</span>
+            </div>
+
+            <!-- Incoming Acceptance Card -->
+            <div id="incoming-accept-card" class="incoming-approval-card" style="display: none;">
+              <div class="approval-header">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 14 14"/></svg>
+                <h4>Incoming Transfer Ready</h4>
+              </div>
+              <div class="approval-body">
+                <p>From: <strong id="incoming-sender-alias">Nearby Device</strong></p>
+                <p id="incoming-files-summary">Loading file details...</p>
+              </div>
+              <div class="approval-actions">
+                <button type="button" class="btn-danger" id="btn-reject-transfer">Decline</button>
+                <button type="button" class="btn-primary" id="btn-accept-transfer">Accept &amp; Download ➔</button>
+              </div>
+            </div>
+
+            <!-- Unified Local Device IP Connector (Mode B LAN Integrated) -->
+            <div class="lan-toggle-area">
+              <button type="button" class="btn-link" id="btn-toggle-lan-mode">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="2" width="20" height="8" rx="2" ry="2"/><rect x="2" y="14" width="20" height="8" rx="2" ry="2"/><line x1="6" y1="6" x2="6.01" y2="6"/><line x1="6" y1="18" x2="6.01" y2="18"/></svg>
+                Connect to Local LynqDrop App IP (LAN)
+              </button>
+
+              <div id="lan-direct-card" class="lan-direct-box" style="display: none;">
+                <p style="font-size: 0.82rem; color: var(--text-secondary); margin-bottom: 10px;">Enter IP:Port shown under "Web Share" in the native LynqDrop app:</p>
+                <div class="lan-input-row">
+                  <input type="text" id="lan-target-host" class="portal-textbox" placeholder="e.g. 192.168.1.18:53317">
+                  <button type="button" class="btn-secondary-sm" id="btn-lan-connect">Open Portal</button>
+                </div>
+              </div>
+            </div>
+
+          </div>
+        </div>
+
+        <!-- =================================================================== -->
+        <!-- TAB 3: QUICK CHAT & MESSENGER                                      -->
+        <!-- =================================================================== -->
+        <div id="subview-card-text" class="subview-card" style="display: none;">
+          <div class="quick-text-box">
+            <div class="quick-text-header">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#10b981" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+              <div>
+                <h4>WhatsApp-Style P2P Quick Chat</h4>
+                <p>Real-time encrypted two-way chat, voice notes, photos, and file drops with zero server storage.</p>
+              </div>
+            </div>
+
+            <!-- Chat Hub Actions when not yet connected -->
+            <div id="quick-chat-launcher" class="quick-chat-launcher" style="display: flex; gap: 10px; margin: 16px 0; flex-wrap: wrap;">
+              <button type="button" class="btn-primary" id="btn-start-chat-room" onclick="window.lynqdrop ? window.lynqdrop.createSenderRoom() : null" style="flex: 1; min-width: 180px;">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg>
+                <span>Start New Chat Room</span>
+              </button>
+              <button type="button" class="btn-secondary" id="btn-join-chat-tab" onclick="switchBrowserShareSubView('receive')" style="flex: 1; min-width: 180px;">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><polyline points="10 17 15 12 10 7"/><line x1="15" y1="12" x2="3" y2="12"/></svg>
+                <span>Join with Room Code</span>
+              </button>
+            </div>
+
+            <textarea id="quick-text-input" class="text-editor-area" placeholder="Type or paste text, links, or notes to send directly to your connected peer..."></textarea>
+            <div class="quick-text-actions">
+              <span id="quick-text-char-count">0 characters</span>
+              <div style="display: flex; gap: 8px;">
+                <button type="button" class="btn-secondary" id="btn-clear-quick-text">Clear</button>
+                <button type="button" class="btn-primary" id="btn-send-quick-text">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+                  Send Direct Note
+                </button>
+              </div>
+            </div>
+            <div id="text-toast" style="display:none; margin-top: 12px; font-size: 0.85rem; color: var(--accent-green);"></div>
+          </div>
+        </div>
+
+        <!-- =================================================================== -->
+        <!-- LIVE TWO-WAY P2P WHATSAPP-STYLE CHAT & FILE DROP ROOM               -->
+        <!-- =================================================================== -->
+        <div id="p2p-live-room" class="p2p-live-room whatsapp-chat-theme" style="display: none;">
+          <!-- WhatsApp Top Room Header -->
+          <div class="live-room-topbar wa-topbar">
+            <div class="peer-header-identity">
+              <div class="peer-avatar-circle" id="peer-avatar-circle">
+                <span id="peer-avatar-icon">📱</span>
+                <span class="live-status-dot"></span>
+              </div>
+              <div class="peer-header-details">
+                <div class="peer-header-name" id="live-peer-name">Connecting...</div>
+                <div class="peer-header-status" id="live-peer-status-text">online • Direct P2P Encrypted</div>
+              </div>
+            </div>
+
+            <div class="wa-topbar-actions">
+              <div class="room-identity-pill">
+                <span id="live-room-code-tag" class="room-code-tag">Room: LD-------</span>
+                <button type="button" class="btn-icon-copy" id="btn-live-copy-link" title="Copy Room Invite Link">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+                </button>
+              </div>
+              <button type="button" class="btn-leave-room" id="btn-leave-live-room" title="Disconnect & Exit Room">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+                <span>Exit</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- Chat & File Stream Window -->
+          <div class="chat-feed-container wa-chat-wallpaper" id="chat-feed-container">
+            <div class="chat-feed wa-feed" id="chat-messages-feed">
+              <div class="chat-system-msg wa-system-pill">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+                <span>🔒 Messages, voice notes, photos &amp; files are end-to-end encrypted with zero server storage.</span>
+              </div>
+            </div>
+            
+            <!-- Live Inline File Drop Overlay for the chat feed -->
+            <div id="chat-drag-overlay" class="chat-drag-overlay" style="display: none;">
+              <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+              <span>Drop files here to send instantly</span>
+            </div>
+          </div>
+
+          <!-- Inline Active Transfer Progress (Floating inside chat) -->
+          <div id="live-transfer-bar" class="live-transfer-bar" style="display: none;">
+            <div class="transfer-info-mini">
+              <span id="live-transfer-label" class="transfer-label-mini">Transferring files...</span>
+              <span id="live-transfer-stats" class="transfer-stats-mini">0% · 0.0 MB/s</span>
+            </div>
+            <div class="transfer-track-mini">
+              <div id="live-transfer-fill" class="transfer-fill-mini" style="width: 0%;"></div>
+            </div>
+          </div>
+
+          <!-- WhatsApp Media Attachment Popup Menu -->
+          <div class="chat-attach-popup" id="chat-attach-popup" style="display: none;">
+            <button type="button" class="attach-popup-item" id="popup-item-camera" title="Take Photo with Camera">
+              <span class="popup-icon-wrap" style="background: linear-gradient(135deg, #ec4899, #f43f5e);">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+              </span>
+              <span>Camera</span>
+            </button>
+            <button type="button" class="attach-popup-item" id="popup-item-gallery" title="Choose Photos &amp; Videos from Device">
+              <span class="popup-icon-wrap" style="background: linear-gradient(135deg, #a855f7, #6366f1);">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+              </span>
+              <span>Photos</span>
+            </button>
+            <button type="button" class="attach-popup-item" id="popup-item-file" title="Choose Documents &amp; Files from Device">
+              <span class="popup-icon-wrap" style="background: linear-gradient(135deg, #0284c7, #2563eb);">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+              </span>
+              <span>Document</span>
+            </button>
+            <button type="button" class="attach-popup-item" id="popup-item-folder" title="Choose Folder from Device">
+              <span class="popup-icon-wrap" style="background: linear-gradient(135deg, #0d9488, #10b981);">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+              </span>
+              <span>Folder</span>
+            </button>
+          </div>
+
+          <!-- Active Voice Recording Bar (When mic is recording) -->
+          <div class="voice-recording-bar" id="live-voice-recorder-bar" style="display: none;">
+            <div class="recording-indicator">
+              <span class="rec-pulse-dot"></span>
+              <span class="rec-timer" id="voice-timer-text">0:00</span>
+            </div>
+            <div class="rec-status-msg">Recording Voice Note...</div>
+            <div class="rec-actions">
+              <button type="button" class="btn-rec-cancel" id="btn-cancel-voice" title="Discard Voice Note">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+              </button>
+              <button type="button" class="btn-rec-send" id="btn-send-voice" title="Send Voice Note">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+              </button>
+            </div>
+          </div>
+
+          <!-- WhatsApp Chat Input Bar -->
+          <div class="chat-input-bar wa-input-bar" id="chat-input-bar">
+            <!-- Hidden device input triggers -->
+            <input type="file" id="chat-camera-input" accept="image/*" capture="environment" style="display: none;">
+            <input type="file" id="chat-gallery-input" accept="image/*,video/*" multiple style="display: none;">
+            <input type="file" id="chat-file-input" multiple style="display: none;">
+            <input type="file" id="chat-folder-input" webkitdirectory directory multiple style="display: none;">
+
+            <!-- Direct 1-tap Camera Button -->
+            <button type="button" class="btn-chat-icon" id="btn-chat-camera" title="Take photo with camera">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+            </button>
+
+            <!-- Attachment Menu Button -->
+            <button type="button" class="btn-chat-icon" id="btn-chat-attach-menu" title="Attach photos, files, or folders">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
+            </button>
+
+            <!-- Text Message Input -->
+            <input type="text" id="chat-text-input" class="chat-textbox wa-textbox" placeholder="Type a message..." autocomplete="off">
+
+            <!-- Direct 1-tap Voice Note / Audio Record Button -->
+            <button type="button" class="btn-chat-icon btn-mic" id="btn-chat-mic" title="Record Voice Note">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>
+            </button>
+
+            <!-- Send Button -->
+            <button type="button" class="btn-chat-send wa-send-btn" id="btn-chat-send" title="Send Message">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+            </button>
+          </div>
+        </div>
+
+        <!-- Room Ended Disconnection Banner -->
+        <div id="room-ended-modal" class="room-ended-modal" style="display: none;">
+          <div class="ended-card">
+            <div class="ended-icon">⚠️</div>
+            <h3>Room Session Terminated</h3>
+            <p id="room-ended-reason">The host or connected peer closed the tab. All transfer memory was securely cleared.</p>
+            <div style="display: flex; gap: 10px; justify-content: center; margin-top: 14px;">
+              <button type="button" class="btn-primary" id="btn-rejoin-new-room">Start / Join New Room</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Active Transfer Monitor -->
+        <div id="active-transfer-card" class="active-transfer-container" style="display: none;">
+          <div class="monitor-header">
+            <div style="overflow: hidden;">
+              <div class="monitor-filename" id="monitor-file-name">Preparing transfer...</div>
+              <div style="font-size: 0.82rem; color: var(--text-muted);" id="monitor-file-index">File 1 of 1</div>
+            </div>
+            <button type="button" class="btn-danger" id="btn-cancel-transfer" style="padding: 6px 14px; font-size: 0.82rem;">Cancel</button>
+          </div>
+          <div class="progress-track">
+            <div class="progress-bar-fill" id="monitor-progress-bar"></div>
+          </div>
+          <div class="metrics-row">
+            <span id="monitor-percent" style="font-weight: 700; color: var(--accent-cyan);">0%</span>
+            <span id="monitor-speed">0.0 MB/s</span>
+            <span id="monitor-bytes">0 B / 0 B</span>
+            <span id="monitor-eta">Calculating ETA...</span>
+          </div>
+        </div>
+
+        <!-- Transfer Completed Screen -->
+        <div id="transfer-complete-card" class="transfer-complete-container" style="display: none;">
+          <div class="complete-icon-circle">
+            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#10b981" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+          </div>
+          <h3>Transfer Complete</h3>
+          <p id="complete-summary">Files transferred successfully over direct peer-to-peer WebRTC DataChannel.</p>
+          <div id="completed-files-list" style="margin-bottom: 20px;"></div>
+          <div>
+            <button type="button" class="btn-primary" id="btn-reset-complete">Done</button>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- Features Section -->
+    <section class="features-section" id="features">
+      <div class="container">
+        <div class="section-heading">
+          <h2>Engineered for Privacy &amp; Performance</h2>
+          <p>Transfer files between devices without uploading them to third-party cloud servers.</p>
+        </div>
+        <div class="features-grid">
+          <div class="feature-card">
+            <div class="feature-icon">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+            </div>
+            <h3>Zero Cloud Storage</h3>
+            <p>Files stream directly from the sender's device memory to the recipient's device. No cloud storage, intermediate caches, or file retention.</p>
+          </div>
+          <div class="feature-card">
+            <div class="feature-icon">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+            </div>
+            <h3>Unlimited Speed &amp; Size</h3>
+            <p>Transfers are limited only by your local network or internet bandwidth. Send multi-gigabyte videos and archives without throttling.</p>
+          </div>
+          <div class="feature-card">
+            <div class="feature-icon">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+            </div>
+            <h3>End-to-End Encrypted</h3>
+            <p>All browser data transfers use DTLS 1.2/1.3 and SCTP encryption natively within WebRTC DataChannels.</p>
+          </div>
+          <div class="feature-card">
+            <div class="feature-icon">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>
+            </div>
+            <h3>SHA-256 Verified</h3>
+            <p>Every transfer computes progressive streaming cryptographic hashes, ensuring byte-for-byte integrity without buffering entire files in memory.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Architecture Section -->
+    <section class="architecture-section" id="how-it-works">
+      <div class="container">
+        <div class="section-heading">
+          <h2>Architecture &amp; Security</h2>
+          <p>LynqDrop provides dedicated architectures tailored to your environment.</p>
+        </div>
+        <div class="architecture-grid">
+          <div class="arch-card">
+            <span class="arch-badge">Mode A</span>
+            <h3>Native App-to-App</h3>
+            <p>High-performance native file sharing with automatic mDNS discovery.</p>
+            <ul class="arch-list">
+              <li>Automatic local network device discovery</li>
+              <li>Line-speed TLS 1.3 socket transfers</li>
+              <li>Background service support &amp; share sheet</li>
+            </ul>
+          </div>
+          <div class="arch-card">
+            <span class="arch-badge">Mode B</span>
+            <h3>Local App Portal</h3>
+            <p>Send files to any browser on the same Wi-Fi via built-in HTTP server.</p>
+            <ul class="arch-list">
+              <li>Native app hosts an ephemeral web server</li>
+              <li>Recipient opens local IP:port in browser</li>
+              <li>Optional session PIN protection</li>
+            </ul>
+          </div>
+          <div class="arch-card highlight">
+            <span class="arch-badge">Mode C</span>
+            <h3>Browser-to-Browser</h3>
+            <p>Zero installation required. Share files instantly across any modern browser.</p>
+            <ul class="arch-list">
+              <li>Direct WebRTC DataChannel streaming</li>
+              <li>Crockford-32 room codes and QR pairing</li>
+              <li>Memory-bounded 64KB chunking with backpressure</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Downloads Section -->
+    <section class="downloads-section" id="download">
+      <div class="container">
+        <div class="section-heading">
+          <h2>Download Native LynqDrop</h2>
+          <p>Get line-speed transfers and automatic discovery with our native apps.</p>
+        </div>
+        <div class="downloads-grid">
+          <div class="platform-card">
+            <div class="platform-icon android">
+              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="5" y="6" width="14" height="15" rx="2"/><path d="M12 2v4M8 2l2 4M16 2l-2 4"/></svg>
+            </div>
+            <h3>Android</h3>
+            <p>Android 8.0+ · APK</p>
+            <div class="platform-actions">
+              <a href="https://github.com/Tcode-Motion/lynqdrop/releases/latest" target="_blank" class="btn-primary-sm">Download APK</a>
+            </div>
+          </div>
+
+          <div class="platform-card">
+            <div class="platform-icon windows">
+              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="8" height="8"/><rect x="13" y="3" width="8" height="8"/><rect x="3" y="13" width="8" height="8"/><rect x="13" y="13" width="8" height="8"/></svg>
+            </div>
+            <h3>Windows</h3>
+            <p>Windows 10 / 11 · x64</p>
+            <div class="platform-actions">
+              <a href="https://github.com/Tcode-Motion/lynqdrop/releases/latest" target="_blank" class="btn-primary-sm">Download Setup</a>
+            </div>
+          </div>
+
+          <div class="platform-card">
+            <div class="platform-icon macos">
+              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20.94c1.5 0 2.75 1.06 4 1.06 1.2 0 2.3-.98 3.5-.98.78 0 1.54.34 2.22.98-3.02 1.6-4.9-1.2-4.9-3.9 0-3 2.5-4.5 2.6-4.6-1.5-2.1-3.7-2.4-4.5-2.4-1.9 0-3.3 1.1-4.2 1.1-.9 0-2.3-1.1-3.8-1.1-2.4 0-4.6 1.4-5.8 3.6-2.5 4.3-.6 10.7 1.8 14.2 1.2 1.7 2.6 3.6 4.4 3.5 1.8-.1 2.5-1.1 4.7-1.1z"/><path d="M15.5 5.5c.8-1 1.4-2.4 1.2-3.8-1.2.1-2.7.8-3.5 1.8-.7.8-1.3 2.2-1.1 3.6 1.4.1 2.7-.6 3.4-1.6z"/></svg>
+            </div>
+            <h3>macOS</h3>
+            <p>Apple Silicon &amp; Intel</p>
+            <div class="platform-actions">
+              <a href="https://github.com/Tcode-Motion/lynqdrop/releases/latest" target="_blank" class="btn-secondary-sm">Releases Page</a>
+            </div>
+          </div>
+
+          <div class="platform-card">
+            <div class="platform-icon linux">
+              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
+            </div>
+            <h3>Linux</h3>
+            <p>AppImage / Tarball</p>
+            <div class="platform-actions">
+              <a href="https://github.com/Tcode-Motion/lynqdrop/releases/latest" target="_blank" class="btn-secondary-sm">Releases Page</a>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- FAQ Section -->
+    <section class="faq-section" id="faq">
+      <div class="container">
+        <div class="section-heading">
+          <h2>Frequently Asked Questions</h2>
+          <p>Everything you need to know about LynqDrop's privacy and networking.</p>
+        </div>
+        <div class="faq-list">
+          <div class="faq-item">
+            <div class="faq-question">
+              <span>Are my files stored on LynqDrop's servers?</span>
+              <span class="faq-toggle">+</span>
+            </div>
+            <div class="faq-answer">
+              <p>No. LynqDrop enforces a strict zero server storage policy. Files transfer directly between sender and receiver devices through encrypted WebRTC DataChannels or direct TCP/TLS sockets. Our signaling servers only coordinate peer handshakes and never touch or store file content.</p>
+            </div>
+          </div>
+
+          <div class="faq-item">
+            <div class="faq-question">
+              <span>Is there any file size limit in the browser?</span>
+              <span class="faq-toggle">+</span>
+            </div>
+            <div class="faq-answer">
+              <p>No. By streaming files in 64 KiB chunks using threshold backpressure flow control and direct-to-disk File System Access / OPFS sinks, LynqDrop can transfer large multi-gigabyte files without crashing your browser or exhausting memory.</p>
+            </div>
+          </div>
+
+          <div class="faq-item">
+            <div class="faq-question">
+              <span>Can I share files between different networks and countries?</span>
+              <span class="faq-toggle">+</span>
+            </div>
+            <div class="faq-answer">
+              <p>Yes. When devices are not on the same local Wi-Fi, WebRTC uses STUN and automatic DTLS-encrypted TURN relay traversal to establish direct peer connections worldwide across NATs and firewalls.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- Site Footer -->
+  <footer class="site-footer">
+    <div class="container footer-content">
+      <div>
+        <strong>LynqDrop</strong> · Direct Cross-Platform File Sharing
+      </div>
+      <div class="footer-links">
+        <a href="#sharing-hub">Share</a>
+        <a href="#download">Downloads</a>
+        <a href="https://github.com/Tcode-Motion/lynqdrop" target="_blank">GitHub</a>
+        <a href="#" id="footer-diag-link">Diagnostics</a>
+      </div>
+    </div>
+  </footer>
+
+  <!-- Real-Time Connection Diagnostics Modal -->
+  <div class="diagnostics-modal-backdrop" id="connection-diagnostics-modal" style="display: none;">
+    <div class="diagnostics-modal-content">
+      <div class="diag-modal-header">
+        <h3>Network &amp; P2P Diagnostics</h3>
+        <button type="button" class="modal-close-btn" id="btn-close-diagnostics">&times;</button>
+      </div>
+      <div class="diag-modal-body">
+        <div class="diag-summary-banner">
+          <div class="diag-banner-item">
+            <span class="diag-banner-label">Connection Mode</span>
+            <span class="diag-status-pill status-ok" id="diag-connection-mode-badge">Direct P2P (DataChannel)</span>
+          </div>
+          <div class="diag-banner-item">
+            <span class="diag-banner-label">Signaling Status</span>
+            <span class="diag-status-pill status-ok" id="diag-signaling-status">Connected</span>
+          </div>
+          <div class="diag-banner-item">
+            <span class="diag-banner-label">WebRTC API</span>
+            <span class="diag-status-pill status-ok" id="diag-webrtc">Supported</span>
+          </div>
+          <div class="diag-banner-item">
+            <span class="diag-banner-label">DataChannel API</span>
+            <span class="diag-status-pill status-ok" id="diag-datachannel">Supported</span>
+          </div>
+        </div>
+
+        <div class="diag-details-grid">
+          <div class="diag-card">
+            <h4>Security &amp; Protocol</h4>
+            <div class="diag-row"><span>Context Security:</span> <strong id="diag-secure">HTTPS Secure</strong></div>
+            <div class="diag-row"><span>Integrity Verification:</span> <strong id="diag-crypto">Web Crypto SHA-256</strong></div>
+            <div class="diag-row"><span>Network State:</span> <strong id="diag-network">Online</strong></div>
+          </div>
+          <div class="diag-card">
+            <h4>DataChannel Configuration</h4>
+            <div class="diag-row"><span>Chunk Size:</span> <strong>64 KiB Binary</strong></div>
+            <div class="diag-row"><span>Backpressure Pause:</span> <strong>1 MiB Threshold</strong></div>
+            <div class="diag-row"><span>Backpressure Resume:</span> <strong>256 KiB Threshold</strong></div>
+          </div>
+        </div>
+
+        <div class="diag-card" style="margin-bottom: 0;">
+          <h4>Active ICE Candidate Details</h4>
+          <div class="diag-row"><span>Local ICE:</span> <code id="diag-local-candidate" style="font-size: 0.78rem;">host (gathering)</code></div>
+          <div class="diag-row"><span>Remote ICE:</span> <code id="diag-remote-candidate" style="font-size: 0.78rem;">none</code></div>
+        </div>
+      </div>
+      <div class="diag-modal-footer">
+        <button type="button" class="btn-secondary-sm" id="btn-refresh-diagnostics">Re-check Environment</button>
+        <button type="button" class="btn-primary-sm" id="btn-close-diagnostics-footer">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Scripts (Versioned for Instant Cache Busting) -->
+  <script src="./peerjs.min.js?v=2.6.0"></script>
+  <script src="./qrcode.min.js?v=2.6.0"></script>
+  <script src="./app.js?v=2.6.0"></script>
+</body>
+</html>
