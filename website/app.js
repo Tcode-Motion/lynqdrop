@@ -85,18 +85,9 @@ document.addEventListener('DOMContentLoaded', () => {
       { urls: 'stun:stun.l.google.com:19302' },
       { urls: 'stun:stun1.l.google.com:19302' },
       { urls: 'stun:stun2.l.google.com:19302' },
-      { urls: 'stun:stun.cloudflare.com:3478' },
-      { urls: 'stun:openrelay.metered.ca:80' },
-      {
-        urls: [
-          'turn:openrelay.metered.ca:80',
-          'turn:openrelay.metered.ca:443',
-          'turn:openrelay.metered.ca:443?transport=tcp',
-          'turns:openrelay.metered.ca:443?transport=tcp'
-        ],
-        username: 'openrelayproject',
-        credential: 'openrelayproject'
-      }
+      { urls: 'stun:stun3.l.google.com:19302' },
+      { urls: 'stun:stun4.l.google.com:19302' },
+      { urls: 'stun:stun.cloudflare.com:3478' }
     ],
     iceCandidatePoolSize: 2
   };
@@ -1088,198 +1079,139 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   // =========================================================================
-  // 8.5 FIREBASE RELAY — port-443 HTTPS relay (works on ALL networks incl. 4G/5G CGN)
-  // Uses Firebase Realtime Database REST API (lynqdrop-app project, free tier).
-  // No WebSocket handshake issues, no blocked ports, works from any carrier network.
+  // 8.5 ZERO-LATENCY PORT-443 DUAL-CHANNEL RELAY (WSS + HTTPS POST)
+  // Powered by global port-443 WSS/HTTPS pub/sub (ntfy.sh)
+  // Ensures sub-second real-time connection across strict Symmetric CGNAT, 4G/5G, and all firewalls
   // =========================================================================
   class BrowserRelay {
     constructor(roomCode, role, onPacket) {
-      this.roomCode = normalizeRoomCode(roomCode);
+      const cleanCode = (roomCode || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+      this.roomCode = cleanCode;
       this.role = role; // 'sender' | 'receiver'
       this.onPacket = onPacket;
       this.connected = false;
       this.closed = false;
 
-      // Firebase RTDB base — public read/write (rules: auth == null)
-      const DB = 'https://lynqdrop-app-default-rtdb.firebaseio.com';
-      // Each direction has its own node so both sides can subscribe independently
-      const dir = role === 'sender' ? 'to-sender' : 'to-receiver';
-      this._listenUrl  = `${DB}/rooms/${this.roomCode}/${dir}.json`;
-      this._publishUrl = `${DB}/rooms/${this.roomCode}/${role === 'sender' ? 'to-receiver' : 'to-sender'}.json`;
-      this._cleanUrl   = `${DB}/rooms/${this.roomCode}.json`;
+      // Unique prefix for LynqDrop rooms
+      const prefix = 'lqd-v1-' + cleanCode;
+      this.subTopic = role === 'sender' ? `${prefix}-s` : `${prefix}-r`;
+      this.pubTopic = role === 'sender' ? `${prefix}-r` : `${prefix}-s`;
 
-      this._sse = null;       // EventSource for real-time push
-      this._pollTimer = null; // SSE watchdog / heartbeat
-      this._seenKeys = new Set();
+      this.ws = null;
+      this.reconnectTimer = null;
+      this.seenIds = new Set();
     }
 
     connect() {
       if (this.closed) return Promise.resolve(false);
       return new Promise((resolve) => {
-        try {
-          // Firebase SSE ("EventSource") — standard HTTPS port 443, no auth needed
-          this._sse = new EventSource(this._listenUrl + '?print=pretty&orderBy="$key"&limitToLast=20');
-          let resolved = false;
+        let isResolved = false;
 
-          const timer = setTimeout(() => {
-            if (!resolved) {
-              // SSE timed out — try plain polling as fallback
-              console.warn('[FirebaseRelay] SSE connect timeout, falling back to poll');
-              this._startPolling();
+        const doConnect = () => {
+          if (this.closed) return;
+          try {
+            this.ws = new WebSocket(`wss://ntfy.sh/${this.subTopic}/ws`);
+
+            this.ws.onopen = () => {
               this.connected = true;
-              resolved = true;
-              resolve(true);
-            }
-          }, 3000);
+              console.log(`[BrowserRelay] Connected to wss://ntfy.sh/${this.subTopic}/ws as ${this.role}`);
+              if (!isResolved) {
+                isResolved = true;
+                resolve(true);
+              }
+            };
 
-          this._sse.addEventListener('put', (ev) => {
-            if (!resolved) {
-              clearTimeout(timer);
+            this.ws.onmessage = (event) => {
+              try {
+                const data = JSON.parse(event.data);
+                if (data.event === 'message' && data.message) {
+                  const parsed = JSON.parse(data.message);
+                  if (parsed && parsed.id && this.seenIds.has(parsed.id)) return;
+                  if (parsed && parsed.id) this.seenIds.add(parsed.id);
+                  if (this.onPacket) this.onPacket(parsed, 'relay');
+                }
+              } catch (err) {
+                console.warn('[BrowserRelay] Packet JSON parse error:', err);
+              }
+            };
+
+            this.ws.onerror = (err) => {
+              console.warn('[BrowserRelay] WS error:', err);
+              if (!isResolved) {
+                isResolved = true;
+                this.connected = true;
+                resolve(true);
+              }
+            };
+
+            this.ws.onclose = () => {
+              this.connected = false;
+              if (!this.closed) {
+                clearTimeout(this.reconnectTimer);
+                this.reconnectTimer = setTimeout(doConnect, 1500);
+              }
+            };
+          } catch (e) {
+            console.warn('[BrowserRelay] WS init exception:', e);
+            if (!isResolved) {
+              isResolved = true;
               this.connected = true;
-              resolved = true;
               resolve(true);
             }
-            try {
-              const data = JSON.parse(ev.data);
-              const node = data && data.data;
-              if (node && typeof node === 'object') {
-                for (const key of Object.keys(node)) {
-                  if (!this._seenKeys.has(key)) {
-                    this._seenKeys.add(key);
-                    if (this.onPacket) this.onPacket(node[key], 'relay');
-                  }
-                }
-              }
-            } catch (_) {}
-          });
+          }
+        };
 
-          this._sse.addEventListener('patch', (ev) => {
-            try {
-              const node = JSON.parse(ev.data) && JSON.parse(ev.data).data;
-              if (node && typeof node === 'object') {
-                for (const key of Object.keys(node)) {
-                  if (!this._seenKeys.has(key)) {
-                    this._seenKeys.add(key);
-                    if (this.onPacket) this.onPacket(node[key], 'relay');
-                  }
-                }
-              }
-            } catch (_) {}
-          });
+        doConnect();
 
-          this._sse.onerror = () => {
-            if (!resolved) {
-              clearTimeout(timer);
-              this.connected = true; // try anyway via polling
-              resolved = true;
-              resolve(true);
-            }
-            this._startPolling();
-          };
-
-          // Heartbeat: re-establish SSE if it silently dies
-          this._pollTimer = setInterval(() => {
-            if (this.closed) return;
-            if (this._sse && this._sse.readyState === EventSource.CLOSED) {
-              this._restartSSE();
-            }
-          }, 8000);
-
-        } catch (e) {
-          console.warn('[FirebaseRelay] SSE unavailable, falling back to polling:', e);
-          this.connected = true;
-          this._startPolling();
-          resolve(true);
-        }
+        // Fast resolution timeout: resolve within 2s anyway
+        setTimeout(() => {
+          if (!isResolved) {
+            isResolved = true;
+            this.connected = true;
+            resolve(true);
+          }
+        }, 2000);
       });
     }
 
-    _restartSSE() {
-      try { if (this._sse) this._sse.close(); } catch (_) {}
-      try {
-        this._sse = new EventSource(this._listenUrl + '?print=pretty&orderBy="$key"&limitToLast=20');
-        this._sse.addEventListener('put', (ev) => this._handleSSEData(ev));
-        this._sse.addEventListener('patch', (ev) => this._handleSSEData(ev));
-        this._sse.onerror = () => {};
-      } catch (_) {}
-    }
-
-    _handleSSEData(ev) {
-      try {
-        const data = JSON.parse(ev.data);
-        const node = data && data.data;
-        if (node && typeof node === 'object') {
-          for (const key of Object.keys(node)) {
-            if (!this._seenKeys.has(key)) {
-              this._seenKeys.add(key);
-              if (this.onPacket) this.onPacket(node[key], 'relay');
-            }
-          }
-        }
-      } catch (_) {}
-    }
-
-    _startPolling() {
-      // Supplementary HTTP polling (1.2s interval) for environments where SSE events get swallowed
-      let lastKey = '';
-      const doPoll = async () => {
-        if (this.closed) return;
-        try {
-          const url = lastKey
-            ? `${this._listenUrl}?orderBy="$key"&startAfter="${encodeURIComponent(lastKey)}"&limitToLast=10&print=pretty`
-            : `${this._listenUrl}?orderBy="$key"&limitToLast=10&print=pretty`;
-          const res = await fetch(url, { method: 'GET', cache: 'no-store' });
-          if (!res.ok) return;
-          const json = await res.json();
-          if (json && typeof json === 'object') {
-            const keys = Object.keys(json).sort();
-            for (const key of keys) {
-              if (!this._seenKeys.has(key)) {
-                this._seenKeys.add(key);
-                lastKey = key;
-                if (this.onPacket) this.onPacket(json[key], 'relay');
-              }
-            }
-          }
-        } catch (_) {}
-      };
-      // Run immediately then at interval
-      doPoll();
-      const pid = setInterval(() => { if (this.closed) { clearInterval(pid); return; } doPoll(); }, 1200);
-    }
-
-    publish(obj) {
+    publish(obj, isKeepAlive = false) {
       if (this.closed) return false;
       try {
+        if (!obj.id) {
+          obj.id = 'p_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7);
+        }
+        this.seenIds.add(obj.id);
         const payload = JSON.stringify(obj);
-        // POST to generate unique push key — Firebase returns a unique child key
-        fetch(this._publishUrl, {
+
+        fetch(`https://ntfy.sh/${this.pubTopic}`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: payload
-        }).catch(() => {});
+          headers: {
+            'Content-Type': 'text/plain'
+          },
+          body: payload,
+          cache: 'no-store',
+          keepalive: !!isKeepAlive
+        }).catch((err) => {
+          console.warn('[BrowserRelay] Publish fetch error:', err);
+        });
+
         return true;
       } catch (err) {
-        console.warn('[FirebaseRelay] Publish failed:', err);
+        console.warn('[BrowserRelay] Publish failed:', err);
         return false;
       }
-    }
-
-    // Clean up stale room signals older than 30s to keep the RTDB tidy
-    _cleanOldMessages() {
-      try {
-        fetch(`${this._cleanUrl}?print=silent`, { method: 'DELETE' }).catch(() => {});
-      } catch (_) {}
     }
 
     close() {
       this.closed = true;
       this.connected = false;
-      if (this._pollTimer) clearInterval(this._pollTimer);
-      try { if (this._sse) this._sse.close(); } catch (_) {}
-      // Best-effort: wipe old signals when a party leaves so the room is clean next time
+      clearTimeout(this.reconnectTimer);
       try {
-        fetch(`${this._publishUrl}?print=silent`, { method: 'DELETE' }).catch(() => {});
+        if (this.ws) {
+          this.ws.onclose = null;
+          this.ws.onerror = null;
+          this.ws.close();
+        }
       } catch (_) {}
     }
   }
@@ -1327,7 +1259,7 @@ document.addEventListener('DOMContentLoaded', () => {
   }
   setInterval(updateLivePeerStatus, 1000);
 
-  function sendPacket(packet) {
+  function sendPacket(packet, isKeepAlive = false) {
     if (!packet) return false;
     if (!packet.id) {
       packet.id = 'p_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7);
@@ -1347,7 +1279,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     if (activeRelay && activeRelay.connected) {
       try {
-        activeRelay.publish(packet);
+        activeRelay.publish(packet, isKeepAlive);
         sent = true;
       } catch (e) {
         console.warn('[LynqDrop] Relay publish failed:', e);
@@ -1737,7 +1669,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Auto-terminate room when browser tab/window closes
   window.addEventListener('beforeunload', () => {
-    sendPacket({ type: 'ROOM_TERMINATED', reason: 'Peer closed the browser tab.' });
+    sendPacket({ type: 'ROOM_TERMINATED', reason: 'Peer closed the browser tab.' }, true);
     if (activeConnection) {
       try { activeConnection.close(); } catch (_) { }
     }
@@ -1750,7 +1682,7 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   window.addEventListener('pagehide', () => {
-    sendPacket({ type: 'ROOM_TERMINATED', reason: 'Peer closed the browser tab.' });
+    sendPacket({ type: 'ROOM_TERMINATED', reason: 'Peer closed the browser tab.' }, true);
     if (activeConnection) {
       try { activeConnection.close(); } catch (_) { }
     }
@@ -2412,15 +2344,6 @@ document.addEventListener('DOMContentLoaded', () => {
         const intentUrl = `intent://lynqdrop.web.app/?room=${roomCode}#Intent;scheme=lynqdrop;package=app.lynqdrop;end`;
         btnOpen.href = intentUrl;
         btnOpen.textContent = 'Open in App';
-
-        // Auto-redirect prompt without blocking web fallback
-        const hasPrompted = sessionStorage.getItem(`lynqdrop_deep_link_${roomCode}`);
-        if (!hasPrompted) {
-          sessionStorage.setItem(`lynqdrop_deep_link_${roomCode}`, 'true');
-          setTimeout(() => {
-            window.location.href = `lynqdrop://room?code=${roomCode}`;
-          }, 350);
-        }
       } else {
         btnOpen.href = '#download';
         btnOpen.textContent = 'Get App';
