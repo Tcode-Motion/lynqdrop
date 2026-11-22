@@ -1,0 +1,41 @@
+{
+  "rules": {
+    ".read": false,
+    ".write": false,
+
+    "rooms": {
+      "$roomId": {
+        "to-sender": {
+          ".read": true,
+          ".write": true,
+          "$msgKey": {
+            ".validate": "newData.hasChild('type') && newData.child('type').isString()"
+          }
+        },
+        "to-receiver": {
+          ".read": true,
+          ".write": true,
+          "$msgKey": {
+            ".validate": "newData.hasChild('type') && newData.child('type').isString()"
+          }
+        }
+      }
+    },
+
+    "files": {
+      ".read": false,
+      ".write": false,
+      ".validate": false
+    },
+    "storage": {
+      ".read": false,
+      ".write": false,
+      ".validate": false
+    },
+    "uploads": {
+      ".read": false,
+      ".write": false,
+      ".validate": false
+    }
+  }
+}

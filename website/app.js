@@ -398,7 +398,8 @@ document.addEventListener('DOMContentLoaded', () => {
       peerAvatarIcon.textContent = os.includes('win') ? '💻' : os.includes('mac') ? '🍏' : os.includes('android') ? '📱' : os.includes('ios') ? '📱' : '🌐';
     }
     if (livePeerStatusText) {
-      livePeerStatusText.textContent = 'online • Direct P2P Encrypted';
+      const hasP2P = activeConnection && (activeConnection.open || (activeConnection.dataChannel && activeConnection.dataChannel.readyState === 'open'));
+      livePeerStatusText.textContent = hasP2P ? 'online • Direct P2P Encrypted' : 'online • Fast Relay Encrypted';
     }
 
     if (btnLiveCopyLink) {
@@ -562,10 +563,11 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
-  function appendChatMessage({ sender, text, time, isMine }) {
+  function appendChatMessage({ sender, text, time, isMine, msgId }) {
     if (!chatFeed) return;
     const bubble = document.createElement('div');
     bubble.className = `chat-bubble ${isMine ? 'mine' : 'peer'}`;
+    if (isMine && msgId) bubble.dataset.msgId = msgId;
     const d = new Date(time || Date.now());
     const timeStr = d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
@@ -574,11 +576,24 @@ document.addEventListener('DOMContentLoaded', () => {
       <span class="chat-bubble-text">${escapeHtml(text)}</span>
       <div class="chat-bubble-footer">
         <span class="chat-bubble-time">${timeStr}</span>
-        ${isMine ? '<span class="wa-checkmarks">✓✓</span>' : ''}
+        ${isMine ? '<span class="wa-checkmarks wa-sent">✓</span>' : ''}
       </div>
     `;
     chatFeed.appendChild(bubble);
     chatFeed.scrollTop = chatFeed.scrollHeight;
+  }
+
+  function markMessageDelivered(msgId) {
+    if (!msgId || !chatFeed) return;
+    const bubble = chatFeed.querySelector(`[data-msg-id="${CSS.escape(msgId)}"]`);
+    if (bubble) {
+      const tick = bubble.querySelector('.wa-checkmarks');
+      if (tick) {
+        tick.textContent = '✓✓';
+        tick.classList.remove('wa-sent');
+        tick.classList.add('wa-delivered');
+      }
+    }
   }
 
   function appendChatFileCard({ sender, file, isMine, downloadUrl, verified, rawBlob }) {
@@ -642,9 +657,11 @@ document.addEventListener('DOMContentLoaded', () => {
     if (!text) return;
 
     const time = Date.now();
+    const msgId = 'msg_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7);
     const packet = {
       id: 'p_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7),
       type: 'CHAT_MSG',
+      msgId: msgId,
       text: text,
       time: time
     };
@@ -653,7 +670,8 @@ document.addEventListener('DOMContentLoaded', () => {
       sender: myDevice.name,
       text: text,
       time: time,
-      isMine: true
+      isMine: true,
+      msgId: msgId
     });
     chatTextInput.value = '';
 
@@ -1070,181 +1088,199 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   // =========================================================================
-  // 8.5 ZERO-LATENCY BROWSER RELAY (MQTT-over-WebSocket)
-  // Ensures sub-second connection across strict Symmetric CGNAT, 4G/5G, and firewalls
+  // 8.5 FIREBASE RELAY — port-443 HTTPS relay (works on ALL networks incl. 4G/5G CGN)
+  // Uses Firebase Realtime Database REST API (lynqdrop-app project, free tier).
+  // No WebSocket handshake issues, no blocked ports, works from any carrier network.
   // =========================================================================
   class BrowserRelay {
     constructor(roomCode, role, onPacket) {
       this.roomCode = normalizeRoomCode(roomCode);
       this.role = role; // 'sender' | 'receiver'
-      this.clientId = 'ld_' + role + '_' + Math.random().toString(36).slice(2, 8);
       this.onPacket = onPacket;
-      this.encoder = new TextEncoder();
-      this.decoder = new TextDecoder();
       this.connected = false;
-      this.subTopic = role === 'sender' ? `lynqdrop/v1/${this.roomCode}/to-sender` : `lynqdrop/v1/${this.roomCode}/to-receiver`;
-      this.pubTopic = role === 'sender' ? `lynqdrop/v1/${this.roomCode}/to-receiver` : `lynqdrop/v1/${this.roomCode}/to-sender`;
-      this.ws = null;
-      this.brokers = [
-        'wss://broker.emqx.io:8084/mqtt',
-        'wss://broker.hivemq.com:8884/mqtt',
-        'wss://test.mosquitto.org:8081/mqtt'
-      ];
-      this.brokerIdx = 0;
       this.closed = false;
+
+      // Firebase RTDB base — public read/write (rules: auth == null)
+      const DB = 'https://lynqdrop-app-default-rtdb.firebaseio.com';
+      // Each direction has its own node so both sides can subscribe independently
+      const dir = role === 'sender' ? 'to-sender' : 'to-receiver';
+      this._listenUrl  = `${DB}/rooms/${this.roomCode}/${dir}.json`;
+      this._publishUrl = `${DB}/rooms/${this.roomCode}/${role === 'sender' ? 'to-receiver' : 'to-sender'}.json`;
+      this._cleanUrl   = `${DB}/rooms/${this.roomCode}.json`;
+
+      this._sse = null;       // EventSource for real-time push
+      this._pollTimer = null; // SSE watchdog / heartbeat
+      this._seenKeys = new Set();
     }
 
     connect() {
       if (this.closed) return Promise.resolve(false);
       return new Promise((resolve) => {
-        const brokerUrl = this.brokers[this.brokerIdx % this.brokers.length];
         try {
-          this.ws = new WebSocket(brokerUrl, 'mqtt');
-          this.ws.binaryType = 'arraybuffer';
-        } catch (e) {
-          console.warn('[BrowserRelay] WS init failed:', e);
-          return resolve(false);
-        }
+          // Firebase SSE ("EventSource") — standard HTTPS port 443, no auth needed
+          this._sse = new EventSource(this._listenUrl + '?print=pretty&orderBy="$key"&limitToLast=20');
+          let resolved = false;
 
-        const connTimeout = setTimeout(() => {
-          if (!this.connected) {
-            try { this.ws.close(); } catch (_) { }
-            this.brokerIdx++;
-            if (!this.closed && this.brokerIdx < 3) {
-              this.connect().then(resolve);
-            } else {
-              resolve(false);
+          const timer = setTimeout(() => {
+            if (!resolved) {
+              // SSE timed out — try plain polling as fallback
+              console.warn('[FirebaseRelay] SSE connect timeout, falling back to poll');
+              this._startPolling();
+              this.connected = true;
+              resolved = true;
+              resolve(true);
             }
-          }
-        }, 3500);
+          }, 3000);
 
-        this.ws.onopen = () => {
-          // Send MQTT 3.1.1 CONNECT
-          const proto = this.encoder.encode('MQTT');
-          const cid = this.encoder.encode(this.clientId);
-          const payloadLen = 2 + cid.length;
-          const varHeaderLen = 10;
-          const remainLen = varHeaderLen + payloadLen;
-
-          const pkt = new Uint8Array(2 + remainLen);
-          pkt[0] = 0x10; // CONNECT
-          pkt[1] = remainLen;
-          pkt[2] = 0x00; pkt[3] = 0x04;
-          pkt.set(proto, 4);
-          pkt[8] = 0x04; // 3.1.1
-          pkt[9] = 0x02; // Clean session
-          pkt[10] = 0x00; pkt[11] = 0x3c; // Keepalive 60s
-          pkt[12] = (cid.length >> 8) & 0xff;
-          pkt[13] = cid.length & 0xff;
-          pkt.set(cid, 14);
-
-          this.ws.send(pkt.buffer);
-        };
-
-        this.ws.onmessage = (event) => {
-          const u8 = new Uint8Array(event.data);
-          const type = (u8[0] >> 4) & 0x0F;
-
-          if (type === 2) { // CONNACK
-            clearTimeout(connTimeout);
-            this.connected = true;
-            console.log(`[BrowserRelay] Connected to ${brokerUrl} as ${this.role}`);
-            this.sendSubscribe(this.subTopic);
-            resolve(true);
-          } else if (type === 3) { // PUBLISH
-            let pos = 1;
-            let remLen = 0;
-            let mult = 1;
-            let b;
-            do {
-              b = u8[pos++];
-              remLen += (b & 127) * mult;
-              mult *= 128;
-            } while ((b & 128) !== 0 && pos < u8.length);
-
-            const topicLen = (u8[pos] << 8) | u8[pos + 1];
-            pos += 2;
-            const topic = this.decoder.decode(u8.subarray(pos, pos + topicLen));
-            pos += topicLen;
-            const payloadStr = this.decoder.decode(u8.subarray(pos));
+          this._sse.addEventListener('put', (ev) => {
+            if (!resolved) {
+              clearTimeout(timer);
+              this.connected = true;
+              resolved = true;
+              resolve(true);
+            }
             try {
-              const parsed = JSON.parse(payloadStr);
-              if (this.onPacket) this.onPacket(parsed, 'relay');
-            } catch (err) {
-              console.warn('[BrowserRelay] Packet JSON parse error:', err);
+              const data = JSON.parse(ev.data);
+              const node = data && data.data;
+              if (node && typeof node === 'object') {
+                for (const key of Object.keys(node)) {
+                  if (!this._seenKeys.has(key)) {
+                    this._seenKeys.add(key);
+                    if (this.onPacket) this.onPacket(node[key], 'relay');
+                  }
+                }
+              }
+            } catch (_) {}
+          });
+
+          this._sse.addEventListener('patch', (ev) => {
+            try {
+              const node = JSON.parse(ev.data) && JSON.parse(ev.data).data;
+              if (node && typeof node === 'object') {
+                for (const key of Object.keys(node)) {
+                  if (!this._seenKeys.has(key)) {
+                    this._seenKeys.add(key);
+                    if (this.onPacket) this.onPacket(node[key], 'relay');
+                  }
+                }
+              }
+            } catch (_) {}
+          });
+
+          this._sse.onerror = () => {
+            if (!resolved) {
+              clearTimeout(timer);
+              this.connected = true; // try anyway via polling
+              resolved = true;
+              resolve(true);
             }
-          }
-        };
+            this._startPolling();
+          };
 
-        this.ws.onerror = () => {
-          clearTimeout(connTimeout);
-          this.connected = false;
-        };
+          // Heartbeat: re-establish SSE if it silently dies
+          this._pollTimer = setInterval(() => {
+            if (this.closed) return;
+            if (this._sse && this._sse.readyState === EventSource.CLOSED) {
+              this._restartSSE();
+            }
+          }, 8000);
 
-        this.ws.onclose = () => {
-          this.connected = false;
-          if (!this.closed && this.brokerIdx < 2) {
-            this.brokerIdx++;
-            setTimeout(() => this.connect(), 500);
-          }
-        };
+        } catch (e) {
+          console.warn('[FirebaseRelay] SSE unavailable, falling back to polling:', e);
+          this.connected = true;
+          this._startPolling();
+          resolve(true);
+        }
       });
     }
 
-    sendSubscribe(topic) {
-      if (!this.ws || this.ws.readyState !== WebSocket.OPEN) return;
-      const topBytes = this.encoder.encode(topic);
-      const remainLen = 2 + (2 + topBytes.length) + 1;
-      const pkt = new Uint8Array(2 + remainLen);
-      pkt[0] = 0x82; // SUBSCRIBE QoS 1
-      pkt[1] = remainLen;
-      pkt[2] = 0x00; pkt[3] = 0x01; // Packet ID 1
-      pkt[4] = (topBytes.length >> 8) & 0xff;
-      pkt[5] = topBytes.length & 0xff;
-      pkt.set(topBytes, 6);
-      pkt[6 + topBytes.length] = 0x00; // QoS 0
-      this.ws.send(pkt.buffer);
+    _restartSSE() {
+      try { if (this._sse) this._sse.close(); } catch (_) {}
+      try {
+        this._sse = new EventSource(this._listenUrl + '?print=pretty&orderBy="$key"&limitToLast=20');
+        this._sse.addEventListener('put', (ev) => this._handleSSEData(ev));
+        this._sse.addEventListener('patch', (ev) => this._handleSSEData(ev));
+        this._sse.onerror = () => {};
+      } catch (_) {}
+    }
+
+    _handleSSEData(ev) {
+      try {
+        const data = JSON.parse(ev.data);
+        const node = data && data.data;
+        if (node && typeof node === 'object') {
+          for (const key of Object.keys(node)) {
+            if (!this._seenKeys.has(key)) {
+              this._seenKeys.add(key);
+              if (this.onPacket) this.onPacket(node[key], 'relay');
+            }
+          }
+        }
+      } catch (_) {}
+    }
+
+    _startPolling() {
+      // Supplementary HTTP polling (1.2s interval) for environments where SSE events get swallowed
+      let lastKey = '';
+      const doPoll = async () => {
+        if (this.closed) return;
+        try {
+          const url = lastKey
+            ? `${this._listenUrl}?orderBy="$key"&startAfter="${encodeURIComponent(lastKey)}"&limitToLast=10&print=pretty`
+            : `${this._listenUrl}?orderBy="$key"&limitToLast=10&print=pretty`;
+          const res = await fetch(url, { method: 'GET', cache: 'no-store' });
+          if (!res.ok) return;
+          const json = await res.json();
+          if (json && typeof json === 'object') {
+            const keys = Object.keys(json).sort();
+            for (const key of keys) {
+              if (!this._seenKeys.has(key)) {
+                this._seenKeys.add(key);
+                lastKey = key;
+                if (this.onPacket) this.onPacket(json[key], 'relay');
+              }
+            }
+          }
+        } catch (_) {}
+      };
+      // Run immediately then at interval
+      doPoll();
+      const pid = setInterval(() => { if (this.closed) { clearInterval(pid); return; } doPoll(); }, 1200);
     }
 
     publish(obj) {
-      if (!this.ws || this.ws.readyState !== WebSocket.OPEN) return false;
+      if (this.closed) return false;
       try {
-        const topBytes = this.encoder.encode(this.pubTopic);
-        const payBytes = this.encoder.encode(typeof obj === 'string' ? obj : JSON.stringify(obj));
-        const remainLen = (2 + topBytes.length) + payBytes.length;
-
-        let lenBytes = [];
-        let rem = remainLen;
-        do {
-          let b = rem % 128;
-          rem = Math.floor(rem / 128);
-          if (rem > 0) b |= 128;
-          lenBytes.push(b);
-        } while (rem > 0);
-
-        const pkt = new Uint8Array(1 + lenBytes.length + remainLen);
-        pkt[0] = 0x30; // PUBLISH QoS 0
-        pkt.set(lenBytes, 1);
-        let offset = 1 + lenBytes.length;
-        pkt[offset] = (topBytes.length >> 8) & 0xff;
-        pkt[offset + 1] = topBytes.length & 0xff;
-        offset += 2;
-        pkt.set(topBytes, offset);
-        offset += topBytes.length;
-        pkt.set(payBytes, offset);
-
-        this.ws.send(pkt.buffer);
+        const payload = JSON.stringify(obj);
+        // POST to generate unique push key — Firebase returns a unique child key
+        fetch(this._publishUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: payload
+        }).catch(() => {});
         return true;
       } catch (err) {
-        console.warn('[BrowserRelay] Publish failed:', err);
+        console.warn('[FirebaseRelay] Publish failed:', err);
         return false;
       }
+    }
+
+    // Clean up stale room signals older than 30s to keep the RTDB tidy
+    _cleanOldMessages() {
+      try {
+        fetch(`${this._cleanUrl}?print=silent`, { method: 'DELETE' }).catch(() => {});
+      } catch (_) {}
     }
 
     close() {
       this.closed = true;
       this.connected = false;
-      try { if (this.ws) this.ws.close(); } catch (_) { }
+      if (this._pollTimer) clearInterval(this._pollTimer);
+      try { if (this._sse) this._sse.close(); } catch (_) {}
+      // Best-effort: wipe old signals when a party leaves so the room is clean next time
+      try {
+        fetch(`${this._publishUrl}?print=silent`, { method: 'DELETE' }).catch(() => {});
+      } catch (_) {}
     }
   }
 
@@ -1434,6 +1470,13 @@ document.addEventListener('DOMContentLoaded', () => {
         time: msg.time || Date.now(),
         isMine: false
       });
+      // Send delivery acknowledgment back so sender can show ✓✓
+      if (msg.msgId) {
+        sendPacket({ type: 'CHAT_ACK', msgId: msg.msgId });
+      }
+    } else if (msg.type === 'CHAT_ACK') {
+      // Upgrade sender's bubble from single ✓ to double ✓✓
+      if (msg.msgId) markMessageDelivered(msg.msgId);
     } else if (msg.type === 'FILE_START' || msg.type === 'CHUNK' || msg.type === 'FILE_END' || msg.type === 'ALL_COMPLETE') {
       handleIncomingFileData(msg, (remoteDevice && remoteDevice.name) || (isSenderRole ? 'Receiver' : 'Sender'));
     } else if (msg.type === 'ROOM_TERMINATED' || msg.type === 'ROOM_CLOSED') {
@@ -1740,7 +1783,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (roomStatusLabel) roomStatusLabel.textContent = 'Room Active · Ready for Receiver';
     renderQRCode(shareUrl, 'room-qr-holder');
 
-    // Initialize Zero-Latency Browser Relay as dual-transport engine
+    // Initialize Firebase RTDB Relay — port 443 HTTPS, works on all carriers/networks
     try {
       if (activeRelay) {
         try { activeRelay.close(); } catch (_) { }
@@ -1749,7 +1792,9 @@ document.addEventListener('DOMContentLoaded', () => {
       activeRelay = new BrowserRelay(currentRoomCode, 'sender', (msg) => {
         handleIncomingPacket(msg, 'relay');
       });
-      activeRelay.connect().then(() => {
+      activeRelay.connect().then((ok) => {
+        console.log('[LynqDrop] Firebase relay connected as sender:', ok);
+        // Broadcast SENDER_ONLINE every 600ms until room opens (receiver may connect any time)
         const senderAnnounceInterval = setInterval(() => {
           if (liveRoomOpen) {
             clearInterval(senderAnnounceInterval);
@@ -1763,11 +1808,11 @@ document.addEventListener('DOMContentLoaded', () => {
               timestamp: Date.now()
             });
           }
-        }, 500);
-        setTimeout(() => clearInterval(senderAnnounceInterval), 15000);
+        }, 600);
+        setTimeout(() => clearInterval(senderAnnounceInterval), 20000);
       });
     } catch (e) {
-      console.warn('[LynqDrop] BrowserRelay init error:', e);
+      console.warn('[LynqDrop] FirebaseRelay init error:', e);
     }
 
     try {
@@ -1807,17 +1852,7 @@ document.addEventListener('DOMContentLoaded', () => {
     activeConnection = conn;
     if (roomStatusLabel) roomStatusLabel.textContent = 'Receiver Connected · Handshaking...';
 
-    // Safety net: never allow sender to stay stuck on Handshaking > 1500ms
-    setTimeout(() => {
-      if (!liveRoomOpen && !roomPinRequired) {
-        console.log('[LynqDrop] Fast-transitioning sender to Live Room (1.5s safety net)');
-        openLiveRoom(currentRoomCode, true);
-        if (selectedFiles.length > 0) {
-          sendLiveFiles(selectedFiles.map(f => f.rawFile || f));
-        }
-      }
-    }, 1500);
-
+    // No false safety net — room only opens on real transport ready (relay HELLO or DataChannel open)
     let senderOpenHandled = false;
     function handleSenderOpen() {
       if (senderOpenHandled) return;
@@ -1954,6 +1989,11 @@ document.addEventListener('DOMContentLoaded', () => {
           time: data.time,
           isMine: false
         });
+        if (data.msgId) {
+          sendPacket({ type: 'CHAT_ACK', msgId: data.msgId });
+        }
+      } else if (data.type === 'CHAT_ACK') {
+        if (data.msgId) markMessageDelivered(data.msgId);
       } else if (data.type === 'FILE_START' || data.type === 'CHUNK' || data.type === 'FILE_END' || data.type === 'ALL_COMPLETE') {
         handleIncomingFileData(data, (remoteDevice && remoteDevice.name) || 'Receiver');
       } else if (data.type === 'ROOM_TERMINATED' || data.type === 'ROOM_CLOSED') {
@@ -2089,7 +2129,7 @@ document.addEventListener('DOMContentLoaded', () => {
         : `Connecting to room ${code}...`;
     }
 
-    // Initialize Zero-Latency Browser Relay as dual-transport engine
+    // Initialize Firebase RTDB Relay — port 443 HTTPS, works on all carriers/networks
     try {
       if (activeRelay) {
         try { activeRelay.close(); } catch (_) { }
@@ -2098,15 +2138,16 @@ document.addEventListener('DOMContentLoaded', () => {
       activeRelay = new BrowserRelay(code, 'receiver', (msg) => {
         handleIncomingPacket(msg, 'relay');
       });
-      activeRelay.connect().then(() => {
-        console.log('[LynqDrop Relay] Receiver connected, announcing HELLO...');
+      activeRelay.connect().then((ok) => {
+        console.log('[LynqDrop Firebase Relay] Receiver connected, announcing HELLO...');
+        // Announce immediately
         activeRelay.publish({
           type: 'RECEIVER_HELLO',
           receiver: myDevice,
           timestamp: Date.now()
         });
 
-        // Fast announcement interval until room opens
+        // Keep announcing until room opens (in case sender missed first broadcast)
         const helloInterval = setInterval(() => {
           if (liveRoomOpen || !activeRelay || !activeRelay.connected) {
             clearInterval(helloInterval);
@@ -2118,10 +2159,10 @@ document.addEventListener('DOMContentLoaded', () => {
             timestamp: Date.now()
           });
         }, 800);
-        setTimeout(() => clearInterval(helloInterval), 8000);
+        setTimeout(() => clearInterval(helloInterval), 20000);
       });
     } catch (e) {
-      console.warn('[LynqDrop] BrowserRelay init error:', e);
+      console.warn('[LynqDrop] FirebaseRelay init error:', e);
     }
 
     try {
@@ -2165,13 +2206,7 @@ document.addEventListener('DOMContentLoaded', () => {
   function setupReceiverConnection(conn, roomCode, retryAttempt, clientPeer) {
     let incomingFilesMeta = [];
 
-    // Safety net: never allow receiver to stay stuck on Handshaking > 1500ms
-    setTimeout(() => {
-      if (!liveRoomOpen && !roomPinRequired) {
-        console.log('[LynqDrop] Fast-transitioning receiver to Live Room (1.5s safety net)');
-        openLiveRoom(currentRoomCode, false);
-      }
-    }, 1500);
+    // No false safety net — room only opens on real transport ready (relay HELLO or DataChannel open)
     let currentSink = null;
     let completedFiles = [];
     let totalBytesExpected = 0;

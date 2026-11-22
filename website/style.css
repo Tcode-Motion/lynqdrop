@@ -2452,6 +2452,16 @@ footer.site-footer {
   line-height: 1;
 }
 
+/* Single tick = sent but not yet delivered */
+.wa-checkmarks.wa-sent {
+  color: #8696a0;
+}
+
+/* Double tick = delivered to peer */
+.wa-checkmarks.wa-delivered {
+  color: #53bdeb;
+}
+
 /* WhatsApp Voice Note Card */
 .chat-voice-card {
   display: flex;
