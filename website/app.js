@@ -681,7 +681,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const dc = (activeConnection && activeConnection.dataChannel) || (activeConnection && activeConnection._dc);
     const isP2POpen = (dc && dc.readyState === 'open');
     if (isP2POpen && activeConnection) {
-      activeConnection.open = true;
+      try { activeConnection._open = true; } catch (_) {}
     }
     const hasP2P = (activeConnection && activeConnection.open) || isP2POpen;
     const hasRelay = activeRelay && activeRelay.connected;
@@ -1819,7 +1819,7 @@ document.addEventListener('DOMContentLoaded', () => {
       if (senderOpenHandled) return;
       senderOpenHandled = true;
       activeConnection = conn;
-      conn.open = true;
+      try { conn._open = true; } catch (_) {}
       if (conn.dataChannel) {
         try { conn.dataChannel.binaryType = 'arraybuffer'; } catch (_) {}
       }
@@ -2184,7 +2184,7 @@ document.addEventListener('DOMContentLoaded', () => {
       if (receiverOpenHandled) return;
       receiverOpenHandled = true;
       activeConnection = conn;
-      conn.open = true;
+      try { conn._open = true; } catch (_) {}
       if (conn.dataChannel) {
         try { conn.dataChannel.binaryType = 'arraybuffer'; } catch (_) {}
       }
