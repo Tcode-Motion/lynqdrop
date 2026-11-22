@@ -1063,7 +1063,7 @@ document.addEventListener('DOMContentLoaded', () => {
   // =========================================================================
   class BrowserRelay {
     constructor(roomCode, role, onPacket) {
-      this.roomCode = (roomCode || '').toUpperCase().trim();
+      this.roomCode = normalizeRoomCode(roomCode);
       this.role = role; // 'sender' | 'receiver'
       this.clientId = 'ld_' + role + '_' + Math.random().toString(36).slice(2, 8);
       this.onPacket = onPacket;
@@ -1075,7 +1075,8 @@ document.addEventListener('DOMContentLoaded', () => {
       this.ws = null;
       this.brokers = [
         'wss://broker.emqx.io:8084/mqtt',
-        'wss://broker.hivemq.com:8884/mqtt'
+        'wss://broker.hivemq.com:8884/mqtt',
+        'wss://test.mosquitto.org:8081/mqtt'
       ];
       this.brokerIdx = 0;
       this.closed = false;
@@ -1275,7 +1276,21 @@ document.addEventListener('DOMContentLoaded', () => {
 
     console.log(`[LynqDrop Packet Received via ${source || 'unknown'}]:`, msg.type);
 
-    if (msg.type === 'RECEIVER_HELLO') {
+    if (msg.type === 'SENDER_ONLINE') {
+      console.log('[LynqDrop] Sender online announcement received via relay');
+      if (msg.sender) {
+        remoteDevice = msg.sender;
+        updatePlatformBadge(myDevice, msg.sender);
+      }
+      sendPacket({
+        type: 'RECEIVER_HELLO',
+        receiver: myDevice,
+        timestamp: Date.now()
+      });
+      if (!roomPinRequired) {
+        openLiveRoom(currentRoomCode, false);
+      }
+    } else if (msg.type === 'RECEIVER_HELLO') {
       console.log('[LynqDrop] Receiver connected via Relay/WebRTC:', msg.receiver);
       if (msg.receiver) {
         remoteDevice = msg.receiver;
@@ -1683,7 +1698,23 @@ document.addEventListener('DOMContentLoaded', () => {
       activeRelay = new BrowserRelay(currentRoomCode, 'sender', (msg) => {
         handleIncomingPacket(msg, 'relay');
       });
-      activeRelay.connect();
+      activeRelay.connect().then(() => {
+        const senderAnnounceInterval = setInterval(() => {
+          if (liveRoomOpen) {
+            clearInterval(senderAnnounceInterval);
+            return;
+          }
+          if (activeRelay && activeRelay.connected) {
+            activeRelay.publish({
+              type: 'SENDER_ONLINE',
+              sender: myDevice,
+              code: currentRoomCode,
+              timestamp: Date.now()
+            });
+          }
+        }, 500);
+        setTimeout(() => clearInterval(senderAnnounceInterval), 15000);
+      });
     } catch (e) {
       console.warn('[LynqDrop] BrowserRelay init error:', e);
     }
@@ -1724,6 +1755,17 @@ document.addEventListener('DOMContentLoaded', () => {
   function setupSenderConnection(conn) {
     activeConnection = conn;
     if (roomStatusLabel) roomStatusLabel.textContent = 'Receiver Connected · Handshaking...';
+
+    // Safety net: never allow sender to stay stuck on Handshaking > 1500ms
+    setTimeout(() => {
+      if (!liveRoomOpen && !roomPinRequired) {
+        console.log('[LynqDrop] Fast-transitioning sender to Live Room (1.5s safety net)');
+        openLiveRoom(currentRoomCode, true);
+        if (selectedFiles.length > 0) {
+          sendLiveFiles(selectedFiles.map(f => f.rawFile || f));
+        }
+      }
+    }, 1500);
 
     let senderOpenHandled = false;
     function handleSenderOpen() {
@@ -2071,6 +2113,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
   function setupReceiverConnection(conn, roomCode, retryAttempt, clientPeer) {
     let incomingFilesMeta = [];
+
+    // Safety net: never allow receiver to stay stuck on Handshaking > 1500ms
+    setTimeout(() => {
+      if (!liveRoomOpen && !roomPinRequired) {
+        console.log('[LynqDrop] Fast-transitioning receiver to Live Room (1.5s safety net)');
+        openLiveRoom(currentRoomCode, false);
+      }
+    }, 1500);
     let currentSink = null;
     let completedFiles = [];
     let totalBytesExpected = 0;
@@ -2315,8 +2365,10 @@ document.addEventListener('DOMContentLoaded', () => {
         window.switchBrowserShareSubView('receive');
 
         if (inputJoinCode) inputJoinCode.value = codeToJoin;
+        if (roomInputContainer) roomInputContainer.style.display = 'none';
+        if (receiveStatusBox) receiveStatusBox.style.display = 'inline-flex';
         if (receiveHeadingText) receiveHeadingText.textContent = `Connecting to ${codeToJoin}...`;
-        if (receiveDescText) receiveDescText.textContent = 'Establishing direct encrypted WebRTC connection with sender...';
+        if (receiveDescText) receiveDescText.textContent = 'Joining room & launching live chat...';
 
         // Setup native Android app deep link banner
         setupNativeAppBanner(codeToJoin);
