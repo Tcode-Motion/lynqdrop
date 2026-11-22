@@ -1136,7 +1136,16 @@ document.addEventListener('DOMContentLoaded', () => {
             this.sendSubscribe(this.subTopic);
             resolve(true);
           } else if (type === 3) { // PUBLISH
-            let pos = 2;
+            let pos = 1;
+            let remLen = 0;
+            let mult = 1;
+            let b;
+            do {
+              b = u8[pos++];
+              remLen += (b & 127) * mult;
+              mult *= 128;
+            } while ((b & 128) !== 0 && pos < u8.length);
+
             const topicLen = (u8[pos] << 8) | u8[pos + 1];
             pos += 2;
             const topic = this.decoder.decode(u8.subarray(pos, pos + topicLen));
@@ -1145,7 +1154,9 @@ document.addEventListener('DOMContentLoaded', () => {
             try {
               const parsed = JSON.parse(payloadStr);
               if (this.onPacket) this.onPacket(parsed, 'relay');
-            } catch (_) { }
+            } catch (err) {
+              console.warn('[BrowserRelay] Packet JSON parse error:', err);
+            }
           }
         };
 
