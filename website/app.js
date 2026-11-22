@@ -325,7 +325,7 @@ document.addEventListener('DOMContentLoaded', () => {
     mediaRecorder.onstop = () => {
       try {
         mediaRecorder.stream.getTracks().forEach(track => track.stop());
-      } catch (_) {}
+      } catch (_) { }
 
       if (shouldSend && audioChunks.length > 0) {
         const type = mediaRecorder.mimeType || 'audio/webm';
@@ -341,7 +341,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     try {
       mediaRecorder.stop();
-    } catch (_) {}
+    } catch (_) { }
 
     if (chatInputBar) chatInputBar.style.display = 'flex';
     if (liveVoiceRecorderBar) liveVoiceRecorderBar.style.display = 'none';
@@ -404,7 +404,7 @@ document.addEventListener('DOMContentLoaded', () => {
       btnLeaveLiveRoom.onclick = () => {
         if (confirm('Leave this room and terminate the direct P2P session?')) {
           if (activeConnection && activeConnection.open) {
-            try { activeConnection.send({ type: 'ROOM_TERMINATED', reason: 'Peer left the room.' }); } catch (_) {}
+            try { activeConnection.send({ type: 'ROOM_TERMINATED', reason: 'Peer left the room.' }); } catch (_) { }
           }
           window.location.href = window.location.origin;
         }
@@ -629,10 +629,14 @@ document.addEventListener('DOMContentLoaded', () => {
     if (!chatTextInput) return;
     const text = (chatTextInput.value || '').trim();
     if (!text) return;
-    if (!activeConnection || !activeConnection.open) {
-      alert('Direct P2P DataChannel connection not established.');
+
+    const hasP2P = activeConnection && (activeConnection.open || (activeConnection.dataChannel && activeConnection.dataChannel.readyState === 'open'));
+    const hasRelay = activeRelay && activeRelay.connected;
+    if (!hasP2P && !hasRelay) {
+      alert('Connection to room peer not established.');
       return;
     }
+
     const time = Date.now();
     appendChatMessage({
       sender: myDevice.name,
@@ -640,22 +644,26 @@ document.addEventListener('DOMContentLoaded', () => {
       time: time,
       isMine: true
     });
-    activeConnection.send({
+
+    sendPacket({
       type: 'CHAT_MSG',
       text: text,
       time: time
     });
+
     chatTextInput.value = '';
   }
 
   async function sendLiveFiles(fileList) {
     if (!fileList || fileList.length === 0) return;
-    if (!activeConnection || !activeConnection.open) {
-      alert('Direct P2P DataChannel connection not established.');
+    const hasP2P = activeConnection && (activeConnection.open || (activeConnection.dataChannel && activeConnection.dataChannel.readyState === 'open'));
+    const hasRelay = activeRelay && activeRelay.connected;
+    if (!hasP2P && !hasRelay) {
+      alert('Connection to room peer not established.');
       return;
     }
 
-    const dc = activeConnection.dataChannel;
+    const dc = hasP2P ? activeConnection.dataChannel : null;
     for (let i = 0; i < fileList.length; i++) {
       const rawFile = fileList[i].rawFile || fileList[i];
       appendChatFileCard({
@@ -669,7 +677,7 @@ document.addEventListener('DOMContentLoaded', () => {
       if (liveTransferBar) liveTransferBar.style.display = 'flex';
       if (liveTransferLabel) liveTransferLabel.textContent = `Sending ${rawFile.name}...`;
 
-      activeConnection.send({
+      sendPacket({
         type: 'FILE_START',
         fileIndex: i,
         name: rawFile.name,
@@ -680,27 +688,56 @@ document.addEventListener('DOMContentLoaded', () => {
 
       let offset = 0;
       const startTime = Date.now();
-      while (offset < rawFile.size && activeConnection && activeConnection.open) {
-        if (dc && dc.bufferedAmount > HIGH_WATER_MARK) {
-          await new Promise((resolve) => {
-            const check = setInterval(() => {
-              if (!dc || dc.bufferedAmount < LOW_WATER_MARK) {
-                clearInterval(check);
-                resolve();
-              }
-            }, 10);
-          });
+      const RELAY_CHUNK_SIZE = 32 * 1024;
+      const WEBRTC_CHUNK_SIZE = CHUNK_SIZE;
+
+      while (offset < rawFile.size) {
+        if (hasP2P && dc && (activeConnection && activeConnection.open)) {
+          if (dc.bufferedAmount > HIGH_WATER_MARK) {
+            await new Promise((resolve) => {
+              const check = setInterval(() => {
+                if (!dc || dc.bufferedAmount < LOW_WATER_MARK) {
+                  clearInterval(check);
+                  resolve();
+                }
+              }, 10);
+            });
+          }
+
+          const slice = rawFile.slice(offset, offset + WEBRTC_CHUNK_SIZE);
+          const buffer = await slice.arrayBuffer();
+          try {
+            activeConnection.send({
+              type: 'CHUNK',
+              fileIndex: i,
+              chunk: buffer
+            });
+          } catch (_) { }
+          offset += buffer.byteLength;
+        } else {
+          // Stream chunk via BrowserRelay
+          const slice = rawFile.slice(offset, offset + RELAY_CHUNK_SIZE);
+          const buffer = await slice.arrayBuffer();
+          let binary = '';
+          const bytes = new Uint8Array(buffer);
+          const len = bytes.byteLength;
+          for (let b = 0; b < len; b++) {
+            binary += String.fromCharCode(bytes[b]);
+          }
+          const base64Data = btoa(binary);
+
+          if (activeRelay && activeRelay.connected) {
+            activeRelay.publish({
+              type: 'CHUNK',
+              fileIndex: i,
+              chunk: base64Data,
+              isBase64: true
+            });
+          }
+          offset += len;
+          await new Promise(r => setTimeout(r, 12));
         }
 
-        const slice = rawFile.slice(offset, offset + CHUNK_SIZE);
-        const buffer = await slice.arrayBuffer();
-        activeConnection.send({
-          type: 'CHUNK',
-          fileIndex: i,
-          chunk: buffer
-        });
-
-        offset += buffer.byteLength;
         const pct = Math.min(100, Math.round((offset / rawFile.size) * 100));
         if (liveTransferFill) liveTransferFill.style.width = `${pct}%`;
         const elapsed = (Date.now() - startTime) / 1000;
@@ -709,14 +746,14 @@ document.addEventListener('DOMContentLoaded', () => {
       }
 
       const sha256 = await computeBlobOrFileSHA256(rawFile);
-      activeConnection.send({
+      sendPacket({
         type: 'FILE_END',
         fileIndex: i,
         sha256
       });
     }
 
-    activeConnection.send({ type: 'ALL_COMPLETE' });
+    sendPacket({ type: 'ALL_COMPLETE' });
     if (liveTransferBar) {
       setTimeout(() => { liveTransferBar.style.display = 'none'; }, 1200);
     }
@@ -743,8 +780,18 @@ document.addEventListener('DOMContentLoaded', () => {
       if (liveTransferStats) liveTransferStats.textContent = '0% · 0.0 MB/s';
     } else if (msg.type === 'CHUNK') {
       if (liveSink) {
-        await liveSink.writeChunk(msg.chunk);
-        liveBytesReceived += (msg.chunk.byteLength || msg.chunk.length || 0);
+        let chunkData = msg.chunk;
+        if (typeof chunkData === 'string' && msg.isBase64) {
+          const binaryStr = atob(chunkData);
+          const len = binaryStr.length;
+          const bytes = new Uint8Array(len);
+          for (let i = 0; i < len; i++) {
+            bytes[i] = binaryStr.charCodeAt(i);
+          }
+          chunkData = bytes.buffer;
+        }
+        await liveSink.writeChunk(chunkData);
+        liveBytesReceived += (chunkData.byteLength || chunkData.length || 0);
 
         const pct = liveTotalExpected > 0 ? Math.min(100, Math.round((liveBytesReceived / liveTotalExpected) * 100)) : 0;
         if (liveTransferFill) liveTransferFill.style.width = `${pct}%`;
@@ -820,7 +867,7 @@ document.addEventListener('DOMContentLoaded', () => {
   // =========================================================================
   // 4. SHARING SUBVIEW CONTROLLER (Send / Receive / Text)
   // =========================================================================
-  window.switchBrowserShareSubView = function(viewId) {
+  window.switchBrowserShareSubView = function (viewId) {
     ['send', 'receive', 'text'].forEach(v => {
       const btn = document.getElementById(`subview-btn-${v}`);
       const card = document.getElementById(`subview-card-${v}`);
@@ -954,7 +1001,7 @@ document.addEventListener('DOMContentLoaded', () => {
           this.writable = await this.fileHandle.createWritable();
           this.sinkType = 'fsa';
           return;
-        } catch (_) {}
+        } catch (_) { }
       }
 
       // 2. Try OPFS
@@ -966,7 +1013,7 @@ document.addEventListener('DOMContentLoaded', () => {
           this.writable = await this.opfsHandle.createWritable();
           this.sinkType = 'opfs';
           return;
-        } catch (_) {}
+        } catch (_) { }
       }
 
       // 3. Fallback to memory blob parts
@@ -1004,6 +1051,317 @@ document.addEventListener('DOMContentLoaded', () => {
       this.fallbackParts = [];
       const url = URL.createObjectURL(blob);
       return { file: blob, directSaved: false, url };
+    }
+  }
+
+  // =========================================================================
+  // 8.5 ZERO-LATENCY BROWSER RELAY (MQTT-over-WebSocket)
+  // Ensures sub-second connection across strict Symmetric CGNAT, 4G/5G, and firewalls
+  // =========================================================================
+  class BrowserRelay {
+    constructor(roomCode, role, onPacket) {
+      this.roomCode = (roomCode || '').toUpperCase().trim();
+      this.role = role; // 'sender' | 'receiver'
+      this.clientId = 'ld_' + role + '_' + Math.random().toString(36).slice(2, 8);
+      this.onPacket = onPacket;
+      this.encoder = new TextEncoder();
+      this.decoder = new TextDecoder();
+      this.connected = false;
+      this.subTopic = role === 'sender' ? `lynqdrop/v1/${this.roomCode}/to-sender` : `lynqdrop/v1/${this.roomCode}/to-receiver`;
+      this.pubTopic = role === 'sender' ? `lynqdrop/v1/${this.roomCode}/to-receiver` : `lynqdrop/v1/${this.roomCode}/to-sender`;
+      this.ws = null;
+      this.brokers = [
+        'wss://broker.emqx.io:8084/mqtt',
+        'wss://broker.hivemq.com:8884/mqtt'
+      ];
+      this.brokerIdx = 0;
+      this.closed = false;
+    }
+
+    connect() {
+      if (this.closed) return Promise.resolve(false);
+      return new Promise((resolve) => {
+        const brokerUrl = this.brokers[this.brokerIdx % this.brokers.length];
+        try {
+          this.ws = new WebSocket(brokerUrl, 'mqtt');
+          this.ws.binaryType = 'arraybuffer';
+        } catch (e) {
+          console.warn('[BrowserRelay] WS init failed:', e);
+          return resolve(false);
+        }
+
+        const connTimeout = setTimeout(() => {
+          if (!this.connected) {
+            try { this.ws.close(); } catch (_) { }
+            this.brokerIdx++;
+            if (!this.closed && this.brokerIdx < 3) {
+              this.connect().then(resolve);
+            } else {
+              resolve(false);
+            }
+          }
+        }, 3500);
+
+        this.ws.onopen = () => {
+          // Send MQTT 3.1.1 CONNECT
+          const proto = this.encoder.encode('MQTT');
+          const cid = this.encoder.encode(this.clientId);
+          const payloadLen = 2 + cid.length;
+          const varHeaderLen = 10;
+          const remainLen = varHeaderLen + payloadLen;
+
+          const pkt = new Uint8Array(2 + remainLen);
+          pkt[0] = 0x10; // CONNECT
+          pkt[1] = remainLen;
+          pkt[2] = 0x00; pkt[3] = 0x04;
+          pkt.set(proto, 4);
+          pkt[8] = 0x04; // 3.1.1
+          pkt[9] = 0x02; // Clean session
+          pkt[10] = 0x00; pkt[11] = 0x3c; // Keepalive 60s
+          pkt[12] = (cid.length >> 8) & 0xff;
+          pkt[13] = cid.length & 0xff;
+          pkt.set(cid, 14);
+
+          this.ws.send(pkt.buffer);
+        };
+
+        this.ws.onmessage = (event) => {
+          const u8 = new Uint8Array(event.data);
+          const type = (u8[0] >> 4) & 0x0F;
+
+          if (type === 2) { // CONNACK
+            clearTimeout(connTimeout);
+            this.connected = true;
+            console.log(`[BrowserRelay] Connected to ${brokerUrl} as ${this.role}`);
+            this.sendSubscribe(this.subTopic);
+            resolve(true);
+          } else if (type === 3) { // PUBLISH
+            let pos = 2;
+            const topicLen = (u8[pos] << 8) | u8[pos + 1];
+            pos += 2;
+            const topic = this.decoder.decode(u8.subarray(pos, pos + topicLen));
+            pos += topicLen;
+            const payloadStr = this.decoder.decode(u8.subarray(pos));
+            try {
+              const parsed = JSON.parse(payloadStr);
+              if (this.onPacket) this.onPacket(parsed, 'relay');
+            } catch (_) { }
+          }
+        };
+
+        this.ws.onerror = () => {
+          clearTimeout(connTimeout);
+          this.connected = false;
+        };
+
+        this.ws.onclose = () => {
+          this.connected = false;
+          if (!this.closed && this.brokerIdx < 2) {
+            this.brokerIdx++;
+            setTimeout(() => this.connect(), 500);
+          }
+        };
+      });
+    }
+
+    sendSubscribe(topic) {
+      if (!this.ws || this.ws.readyState !== WebSocket.OPEN) return;
+      const topBytes = this.encoder.encode(topic);
+      const remainLen = 2 + (2 + topBytes.length) + 1;
+      const pkt = new Uint8Array(2 + remainLen);
+      pkt[0] = 0x82; // SUBSCRIBE QoS 1
+      pkt[1] = remainLen;
+      pkt[2] = 0x00; pkt[3] = 0x01; // Packet ID 1
+      pkt[4] = (topBytes.length >> 8) & 0xff;
+      pkt[5] = topBytes.length & 0xff;
+      pkt.set(topBytes, 6);
+      pkt[6 + topBytes.length] = 0x00; // QoS 0
+      this.ws.send(pkt.buffer);
+    }
+
+    publish(obj) {
+      if (!this.ws || this.ws.readyState !== WebSocket.OPEN) return false;
+      try {
+        const topBytes = this.encoder.encode(this.pubTopic);
+        const payBytes = this.encoder.encode(typeof obj === 'string' ? obj : JSON.stringify(obj));
+        const remainLen = (2 + topBytes.length) + payBytes.length;
+
+        let lenBytes = [];
+        let rem = remainLen;
+        do {
+          let b = rem % 128;
+          rem = Math.floor(rem / 128);
+          if (rem > 0) b |= 128;
+          lenBytes.push(b);
+        } while (rem > 0);
+
+        const pkt = new Uint8Array(1 + lenBytes.length + remainLen);
+        pkt[0] = 0x30; // PUBLISH QoS 0
+        pkt.set(lenBytes, 1);
+        let offset = 1 + lenBytes.length;
+        pkt[offset] = (topBytes.length >> 8) & 0xff;
+        pkt[offset + 1] = topBytes.length & 0xff;
+        offset += 2;
+        pkt.set(topBytes, offset);
+        offset += topBytes.length;
+        pkt.set(payBytes, offset);
+
+        this.ws.send(pkt.buffer);
+        return true;
+      } catch (err) {
+        console.warn('[BrowserRelay] Publish failed:', err);
+        return false;
+      }
+    }
+
+    close() {
+      this.closed = true;
+      this.connected = false;
+      try { if (this.ws) this.ws.close(); } catch (_) { }
+    }
+  }
+
+  // Dual transport state
+  let activeRelay = null;
+  const seenPacketIds = new Set();
+
+  function sendPacket(packet) {
+    if (!packet) return false;
+    if (!packet.id) {
+      packet.id = 'p_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7);
+    }
+    seenPacketIds.add(packet.id);
+
+    let sent = false;
+    const hasP2P = activeConnection && (activeConnection.open || (activeConnection.dataChannel && activeConnection.dataChannel.readyState === 'open'));
+    if (hasP2P) {
+      try {
+        activeConnection.send(packet);
+        sent = true;
+      } catch (e) {
+        console.warn('[LynqDrop] WebRTC send failed:', e);
+      }
+    }
+
+    if (activeRelay && activeRelay.connected) {
+      try {
+        activeRelay.publish(packet);
+        sent = true;
+      } catch (e) {
+        console.warn('[LynqDrop] Relay publish failed:', e);
+      }
+    }
+    return sent;
+  }
+
+  function handleIncomingPacket(msg, source) {
+    if (!msg) return;
+    if (msg.id && seenPacketIds.has(msg.id)) return;
+    if (msg.id) seenPacketIds.add(msg.id);
+
+    console.log(`[LynqDrop Packet Received via ${source || 'unknown'}]:`, msg.type);
+
+    if (msg.type === 'RECEIVER_HELLO') {
+      console.log('[LynqDrop] Receiver connected via Relay/WebRTC:', msg.receiver);
+      if (msg.receiver) {
+        remoteDevice = msg.receiver;
+        updatePlatformBadge(myDevice, msg.receiver);
+        if (roomStatusLabel) roomStatusLabel.textContent = `Connected to ${msg.receiver.name || 'Receiver'} (${msg.receiver.tag || 'Web'})`;
+        if (livePeerStatusText) {
+          livePeerStatusText.textContent = `⚡ ${myDevice.name} (${myDevice.platform}) ↔ ${msg.receiver.name} (${msg.receiver.platform})`;
+        }
+      }
+
+      const requiresPin = roomPinRequired && !!roomPinValue;
+      const filesMeta = selectedFiles.map(f => ({
+        id: f.id,
+        name: f.name,
+        size: f.size,
+        mimeType: f.mimeType
+      }));
+
+      sendPacket({
+        type: 'SENDER_ACK',
+        sender: myDevice,
+        requiresPin,
+        fileCount: selectedFiles.length,
+        totalBytes: selectedFiles.reduce((acc, f) => acc + f.size, 0),
+        files: requiresPin ? [] : filesMeta
+      });
+
+      if (!requiresPin) {
+        openLiveRoom(currentRoomCode, true);
+        if (selectedFiles.length > 0) {
+          sendLiveFiles(selectedFiles.map(f => f.rawFile || f));
+        }
+      }
+    } else if (msg.type === 'HANDSHAKE' || msg.type === 'SENDER_ACK') {
+      console.log('[LynqDrop] Received sender handshake/ACK:', msg);
+      if (msg.sender) {
+        remoteDevice = msg.sender;
+        updatePlatformBadge(myDevice, msg.sender);
+        if (livePeerStatusText) {
+          livePeerStatusText.textContent = `⚡ ${myDevice.name} (${myDevice.platform}) ↔ ${msg.sender.name} (${msg.sender.platform})`;
+        }
+      }
+
+      if (msg.requiresPin) {
+        if (receiveStatusBox) receiveStatusBox.style.display = 'none';
+        const platformCard = document.getElementById('platform-connection-card');
+        if (platformCard) platformCard.style.display = 'none';
+        if (pinChallengeCard) pinChallengeCard.style.display = 'block';
+        if (inputVerifyPin) inputVerifyPin.focus();
+
+        if (btnSubmitPin) {
+          btnSubmitPin.onclick = () => {
+            const entered = (inputVerifyPin?.value || '').trim();
+            if (!entered) return;
+            if (pinErrorText) pinErrorText.style.display = 'none';
+            sendPacket({ type: 'VERIFY_PIN', pin: entered });
+          };
+        }
+      } else {
+        openLiveRoom(currentRoomCode, false);
+      }
+    } else if (msg.type === 'VERIFY_PIN') {
+      const inputPin = (msg.pin || '').trim();
+      if (inputPin === roomPinValue) {
+        console.log('[LynqDrop] Receiver PIN verified successfully');
+        sendPacket({ type: 'PIN_OK' });
+        openLiveRoom(currentRoomCode, true);
+        if (selectedFiles.length > 0) {
+          sendLiveFiles(selectedFiles.map(f => f.rawFile || f));
+        }
+      } else {
+        console.warn('[LynqDrop] Receiver provided incorrect PIN');
+        sendPacket({
+          type: 'PIN_ERROR',
+          message: 'Incorrect PIN. Please re-enter.'
+        });
+      }
+    } else if (msg.type === 'PIN_OK') {
+      if (pinChallengeCard) pinChallengeCard.style.display = 'none';
+      openLiveRoom(currentRoomCode, false);
+    } else if (msg.type === 'PIN_ERROR') {
+      if (pinErrorText) {
+        pinErrorText.style.display = 'block';
+        pinErrorText.textContent = msg.message || 'Incorrect PIN. Please try again.';
+      }
+    } else if (msg.type === 'CHAT_MSG') {
+      appendChatMessage({
+        sender: (remoteDevice && remoteDevice.name) || (isSenderRole ? 'Receiver' : 'Sender'),
+        text: msg.text,
+        time: msg.time || Date.now(),
+        isMine: false
+      });
+    } else if (msg.type === 'FILE_START' || msg.type === 'CHUNK' || msg.type === 'FILE_END' || msg.type === 'ALL_COMPLETE') {
+      handleIncomingFileData(msg, (remoteDevice && remoteDevice.name) || (isSenderRole ? 'Receiver' : 'Sender'));
+    } else if (msg.type === 'ROOM_TERMINATED' || msg.type === 'ROOM_CLOSED') {
+      showRoomEndedModal(msg.reason || 'The connected peer closed their browser tab. Room session terminated.');
+    } else if (msg.type === 'TEXT') {
+      alert(`Message from peer: ${msg.text}`);
+    } else if (msg.type === 'PING') {
+      sendPacket({ type: 'PONG' });
     }
   }
 
@@ -1234,15 +1592,21 @@ document.addEventListener('DOMContentLoaded', () => {
     selectedFiles = [];
     renderSelectedFiles();
     if (sharingRoomCard) sharingRoomCard.style.display = 'none';
+    sendPacket({ type: 'ROOM_CLOSED' });
     if (activeConnection) {
       try {
-        activeConnection.send({ type: 'ROOM_CLOSED' });
         activeConnection.close();
-      } catch (_) {}
+      } catch (_) { }
       activeConnection = null;
     }
+    if (activeRelay) {
+      try {
+        activeRelay.close();
+      } catch (_) { }
+      activeRelay = null;
+    }
     if (activePeer) {
-      try { activePeer.destroy(); } catch (_) {}
+      try { activePeer.destroy(); } catch (_) { }
       activePeer = null;
     }
     currentRoomCode = null;
@@ -1250,28 +1614,28 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Auto-terminate room when browser tab/window closes
   window.addEventListener('beforeunload', () => {
-    if (activeConnection && activeConnection.open) {
-      try {
-        activeConnection.send({ type: 'ROOM_TERMINATED', reason: 'Peer closed the browser tab.' });
-        activeConnection.send({ type: 'ROOM_CLOSED' });
-        activeConnection.close();
-      } catch (_) {}
+    sendPacket({ type: 'ROOM_TERMINATED', reason: 'Peer closed the browser tab.' });
+    if (activeConnection) {
+      try { activeConnection.close(); } catch (_) { }
+    }
+    if (activeRelay) {
+      try { activeRelay.close(); } catch (_) { }
     }
     if (activePeer) {
-      try { activePeer.destroy(); } catch (_) {}
+      try { activePeer.destroy(); } catch (_) { }
     }
   });
 
   window.addEventListener('pagehide', () => {
-    if (activeConnection && activeConnection.open) {
-      try {
-        activeConnection.send({ type: 'ROOM_TERMINATED', reason: 'Peer closed the browser tab.' });
-        activeConnection.send({ type: 'ROOM_CLOSED' });
-        activeConnection.close();
-      } catch (_) {}
+    sendPacket({ type: 'ROOM_TERMINATED', reason: 'Peer closed the browser tab.' });
+    if (activeConnection) {
+      try { activeConnection.close(); } catch (_) { }
+    }
+    if (activeRelay) {
+      try { activeRelay.close(); } catch (_) { }
     }
     if (activePeer) {
-      try { activePeer.destroy(); } catch (_) {}
+      try { activePeer.destroy(); } catch (_) { }
     }
   });
 
@@ -1293,7 +1657,22 @@ document.addEventListener('DOMContentLoaded', () => {
     if (shareUrlField) shareUrlField.value = shareUrl;
 
     if (sharingRoomCard) sharingRoomCard.style.display = 'block';
-    if (roomStatusLabel) roomStatusLabel.textContent = 'Registering room on P2P network...';
+    if (roomStatusLabel) roomStatusLabel.textContent = 'Room Active · Ready for Receiver';
+    renderQRCode(shareUrl, 'room-qr-holder');
+
+    // Initialize Zero-Latency Browser Relay as dual-transport engine
+    try {
+      if (activeRelay) {
+        try { activeRelay.close(); } catch (_) { }
+        activeRelay = null;
+      }
+      activeRelay = new BrowserRelay(currentRoomCode, 'sender', (msg) => {
+        handleIncomingPacket(msg, 'relay');
+      });
+      activeRelay.connect();
+    } catch (e) {
+      console.warn('[LynqDrop] BrowserRelay init error:', e);
+    }
 
     try {
       activePeer = new Peer(peerId, {
@@ -1422,9 +1801,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
     conn.on('data', async (data) => {
       if (!data) return;
-
-      // Receiving ANY data packet is absolute proof the DataChannel is open
       handleSenderOpen();
+      handleIncomingPacket(data, 'webrtc');
 
       if (data.type === 'RECEIVER_HELLO') {
         console.log('[LynqDrop] Received RECEIVER_HELLO:', data.receiver);
@@ -1599,9 +1977,44 @@ document.addEventListener('DOMContentLoaded', () => {
 
     if (receiveStatusBox) receiveStatusBox.style.display = 'inline-flex';
     if (receiveStatusText) {
-      receiveStatusText.textContent = retryAttempt > 1 
-        ? `Connecting to room ${code} (Attempt ${retryAttempt}/5)...` 
+      receiveStatusText.textContent = retryAttempt > 1
+        ? `Connecting to room ${code} (Attempt ${retryAttempt}/5)...`
         : `Connecting to room ${code}...`;
+    }
+
+    // Initialize Zero-Latency Browser Relay as dual-transport engine
+    try {
+      if (activeRelay) {
+        try { activeRelay.close(); } catch (_) { }
+        activeRelay = null;
+      }
+      activeRelay = new BrowserRelay(code, 'receiver', (msg) => {
+        handleIncomingPacket(msg, 'relay');
+      });
+      activeRelay.connect().then(() => {
+        console.log('[LynqDrop Relay] Receiver connected, announcing HELLO...');
+        activeRelay.publish({
+          type: 'RECEIVER_HELLO',
+          receiver: myDevice,
+          timestamp: Date.now()
+        });
+
+        // Fast announcement interval until room opens
+        const helloInterval = setInterval(() => {
+          if (liveRoomOpen || !activeRelay || !activeRelay.connected) {
+            clearInterval(helloInterval);
+            return;
+          }
+          activeRelay.publish({
+            type: 'RECEIVER_HELLO',
+            receiver: myDevice,
+            timestamp: Date.now()
+          });
+        }, 800);
+        setTimeout(() => clearInterval(helloInterval), 8000);
+      });
+    } catch (e) {
+      console.warn('[LynqDrop] BrowserRelay init error:', e);
     }
 
     try {
@@ -1626,7 +2039,7 @@ document.addEventListener('DOMContentLoaded', () => {
         console.warn('[LynqDrop Receiver] Peer error:', err);
         if (err.type === 'peer-unavailable' && retryAttempt < 5) {
           setTimeout(() => {
-            try { clientPeer.destroy(); } catch (_) {}
+            try { clientPeer.destroy(); } catch (_) { }
             joinReceiveSession(code, retryAttempt + 1);
           }, 800);
         } else {
@@ -1728,9 +2141,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
     conn.on('data', async (msg) => {
       if (!msg) return;
-
-      // Receiving ANY data packet is proof the connection is open
       handleReceiverOpen();
+      handleIncomingPacket(msg, 'webrtc');
 
       if (msg.type === 'HANDSHAKE' || msg.type === 'SENDER_ACK') {
         console.log('[LynqDrop Receiver] Received handshake from sender:', msg);
@@ -1800,8 +2212,8 @@ document.addEventListener('DOMContentLoaded', () => {
       }
       if (incomingAcceptCard) incomingAcceptCard.style.display = 'block';
       if (receiveStatusBox) receiveStatusBox.style.display = 'none';
-    const platformCard = document.getElementById('platform-connection-card');
-    if (platformCard) platformCard.style.display = 'none';
+      const platformCard = document.getElementById('platform-connection-card');
+      if (platformCard) platformCard.style.display = 'none';
 
       if (btnAcceptTransfer) {
         btnAcceptTransfer.onclick = () => {
@@ -1824,8 +2236,8 @@ document.addEventListener('DOMContentLoaded', () => {
     function resetReceiverState() {
       if (roomInputContainer) roomInputContainer.style.display = 'flex';
       if (receiveStatusBox) receiveStatusBox.style.display = 'none';
-    const platformCard = document.getElementById('platform-connection-card');
-    if (platformCard) platformCard.style.display = 'none';
+      const platformCard = document.getElementById('platform-connection-card');
+      if (platformCard) platformCard.style.display = 'none';
       if (incomingAcceptCard) incomingAcceptCard.style.display = 'none';
       if (activeTransferCard) activeTransferCard.style.display = 'none';
     }
@@ -1880,14 +2292,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
       if (codeToJoin && isValidRoomCode(codeToJoin)) {
         console.log('[LynqDrop] QR Code scanned! Auto-joining room:', codeToJoin);
-        
+
         // Hide hero banner on phone to give full focus to incoming transfer
         document.body.classList.add('qr-joined');
         document.body.classList.add('mobile-app-mode');
-        
+
         // Switch to Receive subview immediately
         window.switchBrowserShareSubView('receive');
-        
+
         if (inputJoinCode) inputJoinCode.value = codeToJoin;
         if (receiveHeadingText) receiveHeadingText.textContent = `Connecting to ${codeToJoin}...`;
         if (receiveDescText) receiveDescText.textContent = 'Establishing direct encrypted WebRTC connection with sender...';
@@ -1907,7 +2319,7 @@ document.addEventListener('DOMContentLoaded', () => {
         // No room in URL -> sender mode on PC/web -> create sender room immediately
         initializeSenderRoom();
       }
-    } catch (_) {}
+    } catch (_) { }
   }
   checkUrlForAutoJoin();
 
@@ -1995,7 +2407,7 @@ document.addEventListener('DOMContentLoaded', () => {
       transferInProgress = false;
       if (activeTransferCard) activeTransferCard.style.display = 'none';
       if (activeConnection) {
-        try { activeConnection.close(); } catch (_) {}
+        try { activeConnection.close(); } catch (_) { }
       }
       alert('Transfer cancelled.');
     });
