@@ -1,0 +1,13 @@
+[
+  {
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "com.app.lynqdrop",
+      "sha256_cert_fingerprints": [
+        "5E:1A:0E:D9:FA:03:55:FA:56:B2:05:29:BF:2C:7F:74:16:6D:28:C3:63:71:CE:85:A9:74:69:F0:25:12:1E:61",
+        "58:EF:02:A6:EE:4C:9D:9B:C5:47:83:FF:81:6B:12:8B:6A:D5:2A:03:BD:4E:42:5B:45:09:59:50:AC:1F:02:D6"
+      ]
+    }
+  }
+]

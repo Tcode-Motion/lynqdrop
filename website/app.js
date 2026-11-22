@@ -370,14 +370,14 @@ document.addEventListener('DOMContentLoaded', () => {
     if (isHost) {
       isRoomAdmin = true;
     }
-    try { window.scrollTo(0, 0); } catch (_) {}
+    try { window.scrollTo(0, 0); } catch (_) { }
 
     try {
       const roomUrl = `${window.location.origin}/?room=${encodeURIComponent(code)}`;
       window.history.replaceState({ room: code, role: isHost ? 'sender' : 'receiver' }, '', roomUrl);
       sessionStorage.setItem('ld_room_' + code, isHost ? 'sender' : 'receiver');
       sessionStorage.setItem('ld_active_code', code);
-    } catch (_) {}
+    } catch (_) { }
 
     document.body.classList.add('in-live-room');
 
@@ -525,7 +525,7 @@ document.addEventListener('DOMContentLoaded', () => {
         sendPacket({ type: 'PEER_LEFT', senderId: myClientId });
         participantsRoster.clear();
         for (const [peerId, conn] of activePeersMap.entries()) {
-          try { conn.close(); } catch (_) {}
+          try { conn.close(); } catch (_) { }
         }
         activePeersMap.clear();
         sendPacket({ type: 'ROOM_TERMINATED', reason: 'Peer left the room.' }, true);
@@ -537,7 +537,7 @@ document.addEventListener('DOMContentLoaded', () => {
           sessionStorage.removeItem('ld_room_' + code);
           sessionStorage.removeItem('ld_active_code');
           window.history.replaceState({}, '', window.location.origin);
-        } catch (_) {}
+        } catch (_) { }
         window.location.href = window.location.origin;
       }
     };
@@ -578,7 +578,7 @@ document.addEventListener('DOMContentLoaded', () => {
       if (webcamStream) {
         try {
           webcamStream.getTracks().forEach(t => t.stop());
-        } catch (_) {}
+        } catch (_) { }
         webcamStream = null;
       }
       if (videoWebcam) videoWebcam.srcObject = null;
@@ -644,7 +644,7 @@ document.addEventListener('DOMContentLoaded', () => {
       if (lightboxImg) lightboxImg.src = '';
     }
 
-    window.lynqOpenLightbox = function(srcUrl, fileName, fileSize) {
+    window.lynqOpenLightbox = function (srcUrl, fileName, fileSize) {
       if (!modalLightbox || !lightboxImg) return;
       lightboxImg.src = srcUrl;
       if (lightboxFilename) lightboxFilename.textContent = fileName || 'Image';
@@ -679,7 +679,7 @@ document.addEventListener('DOMContentLoaded', () => {
       if (pdfViewerFrame) pdfViewerFrame.src = '';
     }
 
-    window.lynqOpenPdf = function(srcUrl, fileName) {
+    window.lynqOpenPdf = function (srcUrl, fileName) {
       if (!modalPdf || !pdfViewerFrame) return;
       pdfViewerFrame.src = srcUrl;
       if (pdfModalFilename) pdfModalFilename.textContent = fileName || 'Document.pdf';
@@ -781,13 +781,9 @@ document.addEventListener('DOMContentLoaded', () => {
         if (chatAttachPopup) chatAttachPopup.style.display = 'none';
         chatFolderInput.click();
       });
-      chatFolderInput.addEventListener('change', async () => {
+      chatFolderInput.addEventListener('change', () => {
         if (chatFolderInput.files && chatFolderInput.files.length > 0) {
-          const rawFiles = Array.from(chatFolderInput.files);
-          const firstPath = rawFiles[0]?.webkitRelativePath;
-          const folderName = firstPath ? firstPath.split('/')[0] : 'Folder';
-          const zipped = await compressFolderToZip(rawFiles, folderName);
-          sendLiveFiles(zipped);
+          sendLiveFiles(Array.from(chatFolderInput.files));
           chatFolderInput.value = '';
         }
       });
@@ -826,14 +822,11 @@ document.addEventListener('DOMContentLoaded', () => {
         e.preventDefault();
         if (chatDragOverlay) chatDragOverlay.style.display = 'none';
       });
-      chatFeedContainer.addEventListener('drop', async (e) => {
+      chatFeedContainer.addEventListener('drop', (e) => {
         e.preventDefault();
         if (chatDragOverlay) chatDragOverlay.style.display = 'none';
-        if (e.dataTransfer) {
-          const files = await extractDroppedFiles(e.dataTransfer);
-          if (files && files.length > 0) {
-            sendLiveFiles(files);
-          }
+        if (e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+          sendLiveFiles(Array.from(e.dataTransfer.files));
         }
       });
     }
@@ -891,119 +884,16 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   const activeMediaMap = new Map();
-  window.lynqOpenLightboxById = function(mediaId) {
+  window.lynqOpenLightboxById = function (mediaId) {
     const item = activeMediaMap.get(mediaId);
     if (!item) return;
     window.lynqOpenLightbox(item.url, item.name, item.size);
   };
-  window.lynqOpenPdfById = function(mediaId) {
+  window.lynqOpenPdfById = function (mediaId) {
     const item = activeMediaMap.get(mediaId);
     if (!item) return;
     window.lynqOpenPdf(item.url, item.name);
   };
-
-  // Folder Compression & Directory Scanner (Bundles directories into clean .zip)
-  async function compressFolderToZip(fileList, defaultFolderName = 'Folder') {
-    if (!fileList || fileList.length === 0) return [];
-    if (typeof JSZip === 'undefined') {
-      console.warn('[LynqDrop] JSZip not loaded, sending raw files');
-      return fileList;
-    }
-
-    const zip = new JSZip();
-    let rootFolder = defaultFolderName;
-    for (const f of fileList) {
-      const relPath = f.webkitRelativePath || f.name;
-      const parts = relPath.split('/');
-      if (parts.length > 1 && (!rootFolder || rootFolder === 'Folder')) {
-        rootFolder = parts[0];
-      }
-      zip.file(relPath, f);
-    }
-    const zipName = (rootFolder ? rootFolder.replace(/[\\/:*?"<>|]/g, '_') : 'Archive') + '.zip';
-
-    if (liveTransferBar) liveTransferBar.style.display = 'flex';
-    if (liveTransferLabel) liveTransferLabel.textContent = `Compressing ${zipName}...`;
-    if (liveTransferFill) liveTransferFill.style.width = '100%';
-    if (liveTransferStats) liveTransferStats.textContent = `Zipping folder...`;
-
-    try {
-      const zipBlob = await zip.generateAsync({
-        type: 'blob',
-        compression: 'DEFLATE',
-        compressionOptions: { level: 6 }
-      }, (metadata) => {
-        if (liveTransferStats) {
-          liveTransferStats.textContent = `Zipping ${Math.round(metadata.percent)}%`;
-        }
-      });
-
-      const zipFile = new File([zipBlob], zipName, { type: 'application/zip' });
-      zipFile.isZippedFolder = true;
-      if (liveTransferBar) liveTransferBar.style.display = 'none';
-      return [zipFile];
-    } catch (err) {
-      console.error('[LynqDrop] Zip compression failed:', err);
-      if (liveTransferBar) liveTransferBar.style.display = 'none';
-      return fileList;
-    }
-  }
-
-  async function scanDirectoryEntry(itemEntry) {
-    const files = [];
-    async function readEntry(entry, currentPath = '') {
-      if (entry.isFile) {
-        const file = await new Promise((res, rej) => entry.file(res, rej));
-        Object.defineProperty(file, 'webkitRelativePath', {
-          value: currentPath + entry.name,
-          writable: true
-        });
-        files.push(file);
-      } else if (entry.isDirectory) {
-        const reader = entry.createReader();
-        const entries = await new Promise((res, rej) => {
-          const results = [];
-          function readNext() {
-            reader.readEntries((batch) => {
-              if (!batch.length) return res(results);
-              results.push(...batch);
-              readNext();
-            }, rej);
-          }
-          readNext();
-        });
-        for (const child of entries) {
-          await readEntry(child, currentPath + entry.name + '/');
-        }
-      }
-    }
-    await readEntry(itemEntry);
-    return files;
-  }
-
-  async function extractDroppedFiles(dataTransfer) {
-    const files = [];
-    if (dataTransfer.items && dataTransfer.items.length > 0) {
-      for (let i = 0; i < dataTransfer.items.length; i++) {
-        const item = dataTransfer.items[i];
-        if (typeof item.webkitGetAsEntry === 'function') {
-          const entry = item.webkitGetAsEntry();
-          if (entry && entry.isDirectory) {
-            const dirFiles = await scanDirectoryEntry(entry);
-            if (dirFiles.length > 0) {
-              const zipped = await compressFolderToZip(dirFiles, entry.name);
-              files.push(...zipped);
-            }
-            continue;
-          }
-        }
-        const f = item.getAsFile ? item.getAsFile() : null;
-        if (f) files.push(f);
-      }
-      if (files.length > 0) return files;
-    }
-    return Array.from(dataTransfer.files || []);
-  }
 
   // Fast SIMD / Batch Chunk Encoding/Decoding for zero-lag Wi-Fi streaming
   function uint8ToBase64(u8) {
@@ -1117,7 +1007,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const isImage = (file.mimeType && file.mimeType.startsWith('image/')) || fileName.match(/\.(jpg|jpeg|png|webp|gif|svg|bmp|avif)$/i);
     const isPdf = (file.mimeType === 'application/pdf') || fileName.toLowerCase().endsWith('.pdf');
     const isVideo = (file.mimeType && file.mimeType.startsWith('video/')) || fileName.match(/\.(mp4|webm|mov|mkv)$/i);
-    const isZip = (file.mimeType && (file.mimeType === 'application/zip' || file.mimeType === 'application/x-zip-compressed')) || fileName.match(/\.(zip|7z|tar|gz|rar)$/i);
 
     const srcUrl = downloadUrl || (rawBlob ? URL.createObjectURL(rawBlob) : null);
     const mediaId = 'med_' + Math.random().toString(36).slice(2, 9);
@@ -1189,19 +1078,6 @@ document.addEventListener('DOMContentLoaded', () => {
           </div>
         </div>
       `;
-    } else if (isZip) {
-      contentHtml = `
-        <div class="chat-file-card wa-zip-card">
-          <div class="zip-icon-wrapper" style="font-size: 1.8rem; margin-right: 8px;">🗂️</div>
-          <div class="chat-file-info">
-            <div class="chat-file-name" title="${escapeHtml(fileName)}">
-              <span class="wa-file-badge badge-archive">ZIP</span>${escapeHtml(fileName)}
-            </div>
-            <div class="chat-file-size">${formatBytes(file.size)} ${verified ? '· Verified ✓' : ''}</div>
-          </div>
-          ${downloadUrl ? `<a href="${downloadUrl}" download="${escapeHtml(fileName)}" class="btn-file-download btn-zip-download" title="Download ZIP File">Download ZIP</a>` : ''}
-        </div>
-      `;
     } else {
       contentHtml = `
         <div class="chat-file-card">
@@ -1239,7 +1115,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const isImage = (file.mimeType && file.mimeType.startsWith('image/')) || fileName.match(/\.(jpg|jpeg|png|webp|gif|svg|bmp|avif)$/i);
     const isPdf = (file.mimeType === 'application/pdf') || fileName.toLowerCase().endsWith('.pdf');
     const isVideo = (file.mimeType && file.mimeType.startsWith('video/')) || fileName.match(/\.(mp4|webm|mov|mkv)$/i);
-    const isZip = (file.mimeType && (file.mimeType === 'application/zip' || file.mimeType === 'application/x-zip-compressed')) || fileName.match(/\.(zip|7z|tar|gz|rar)$/i);
 
     const srcUrl = downloadUrl || (rawBlob ? URL.createObjectURL(rawBlob) : null);
     const mediaId = 'med_' + Math.random().toString(36).slice(2, 9);
@@ -1312,19 +1187,6 @@ document.addEventListener('DOMContentLoaded', () => {
           </div>
         </div>
       `;
-    } else if (isZip) {
-      contentHtml = `
-        <div class="chat-file-card wa-zip-card">
-          <div class="zip-icon-wrapper" style="font-size: 1.8rem; margin-right: 8px;">🗂️</div>
-          <div class="chat-file-info">
-            <div class="chat-file-name" title="${escapeHtml(fileName)}">
-              <span class="wa-file-badge badge-archive">ZIP</span>${escapeHtml(fileName)}
-            </div>
-            <div class="chat-file-size">${formatBytes(file.size)} ${verified ? '· Verified ✓' : ''}</div>
-          </div>
-          ${downloadUrl ? `<a href="${downloadUrl}" download="${escapeHtml(fileName)}" class="btn-file-download btn-zip-download" title="Download ZIP File">Download ZIP</a>` : `<span class="file-send-status">Sending...</span>`}
-        </div>
-      `;
     } else {
       contentHtml = `
         <div class="chat-file-card">
@@ -1386,7 +1248,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const dc = (activeConnection && activeConnection.dataChannel) || (activeConnection && activeConnection._dc);
     const isP2POpen = (dc && dc.readyState === 'open');
     if (isP2POpen && activeConnection) {
-      try { activeConnection._open = true; } catch (_) {}
+      try { activeConnection._open = true; } catch (_) { }
     }
     const hasP2P = (activeConnection && activeConnection.open) || isP2POpen;
     const hasRelay = activeRelay && activeRelay.connected;
@@ -1397,32 +1259,12 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     if (dc) {
-      try { dc.binaryType = 'arraybuffer'; } catch (_) {}
+      try { dc.binaryType = 'arraybuffer'; } catch (_) { }
     }
 
-    // 1. Sort files by size ascending: smaller files are dispatched and finish first!
-    const sortedFiles = [...fileList].sort((a, b) => {
-      const sizeA = (a.rawFile || a).size || 0;
-      const sizeB = (b.rawFile || b).size || 0;
-      return sizeA - sizeB;
-    });
-
-    const totalBatchBytes = sortedFiles.reduce((acc, f) => acc + ((f.rawFile || f).size || 0), 0);
-    let totalBatchSent = 0;
-    const batchStartTime = Date.now();
-
-    if (liveTransferBar) liveTransferBar.style.display = 'flex';
-    if (liveTransferLabel) {
-      liveTransferLabel.textContent = sortedFiles.length === 1
-        ? `Sending ${sortedFiles[0].name}...`
-        : `Sending ${sortedFiles.length} files in parallel (${formatBytes(totalBatchBytes)})...`;
-    }
-
-    // 2. Transmit all files simultaneously in fully parallel streaming pipelines!
-    await Promise.all(sortedFiles.map(async (fileItem, i) => {
-      const rawFile = fileItem.rawFile || fileItem;
-      const transferId = 'tx_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7) + '_' + i;
-
+    for (let i = 0; i < fileList.length; i++) {
+      const rawFile = fileList[i].rawFile || fileList[i];
+      const transferId = 'tx_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7);
       appendChatFileCard({
         sender: myDevice.name,
         file: { name: rawFile.name, size: rawFile.size, mimeType: rawFile.type, isVoiceNote: rawFile.isVoiceNote },
@@ -1431,6 +1273,9 @@ document.addEventListener('DOMContentLoaded', () => {
         rawBlob: rawFile,
         transferId
       });
+
+      if (liveTransferBar) liveTransferBar.style.display = 'flex';
+      if (liveTransferLabel) liveTransferLabel.textContent = `Sending ${rawFile.name}...`;
 
       sendPacket({
         type: 'FILE_START',
@@ -1446,13 +1291,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
       let offset = 0;
       let chunkIdx = 0;
+      const startTime = Date.now();
       const RELAY_CHUNK_SIZE = 64 * 1024; // 64 KiB fast chunks
       const WEBRTC_CHUNK_SIZE = 256 * 1024; // 256 KiB high-throughput Wi-Fi chunks
       const HIGH_BUF = 8 * 1024 * 1024; // 8 MiB backpressure ceiling
       const LOW_BUF = 2 * 1024 * 1024;  // 2 MiB resume threshold
 
       if (dc) {
-        try { dc.bufferedAmountLowThreshold = LOW_BUF; } catch (_) {}
+        try { dc.bufferedAmountLowThreshold = LOW_BUF; } catch (_) { }
       }
 
       while (offset < rawFile.size) {
@@ -1503,10 +1349,9 @@ document.addEventListener('DOMContentLoaded', () => {
             }
           }
           if (activePeersMap.size === 0 && activeConnection) {
-            try { activeConnection.send(chunkMsg); } catch (_) {}
+            try { activeConnection.send(chunkMsg); } catch (_) { }
           }
           offset += buffer.byteLength;
-          totalBatchSent += buffer.byteLength;
           chunkIdx++;
         } else {
           // High-throughput Relay streaming with fast SIMD batch base64
@@ -1525,21 +1370,17 @@ document.addEventListener('DOMContentLoaded', () => {
               isBase64: true
             });
           }
+          offset += len;
+          await new Promise(r => setTimeout(r, 2));
           offset += buffer.byteLength;
-          totalBatchSent += buffer.byteLength;
           chunkIdx++;
         }
 
-        const pct = totalBatchBytes > 0 ? Math.min(100, Math.round((totalBatchSent / totalBatchBytes) * 100)) : 100;
+        const pct = Math.min(100, Math.round((offset / rawFile.size) * 100));
         if (liveTransferFill) liveTransferFill.style.width = `${pct}%`;
-        const elapsed = (Date.now() - batchStartTime) / 1000;
-        const speed = elapsed > 0 ? (totalBatchSent / elapsed / (1024 * 1024)).toFixed(1) : '0.0';
+        const elapsed = (Date.now() - startTime) / 1000;
+        const speed = elapsed > 0 ? (offset / elapsed / (1024 * 1024)).toFixed(1) : '0.0';
         if (liveTransferStats) liveTransferStats.textContent = `${pct}% · ${speed} MB/s`;
-
-        // Micro-yield to allow concurrent parallel chunk streams to interleave smoothly
-        if (sortedFiles.length > 1) {
-          await new Promise(r => setTimeout(r, 0));
-        }
       }
 
       const sha256 = await computeBlobOrFileSHA256(rawFile);
@@ -1550,103 +1391,85 @@ document.addEventListener('DOMContentLoaded', () => {
         name: rawFile.name,
         sha256
       });
-    }));
+    }
 
     sendPacket({ type: 'ALL_COMPLETE' });
     if (liveTransferBar) {
-      setTimeout(() => { liveTransferBar.style.display = 'none'; }, 1500);
+      setTimeout(() => { liveTransferBar.style.display = 'none'; }, 1200);
     }
   }
 
-  // Active Multi-File Sinks Map for Parallel Receiving
-  const activeSinksMap = new Map(); // key: transferId, value: { sink, meta, totalExpected, bytesReceived, startTime }
-  let totalIncomingBatchExpected = 0;
-  let totalIncomingBatchReceived = 0;
-  let incomingBatchStartTime = Date.now();
+  let liveSink = null;
+  let liveTotalExpected = 0;
+  let liveBytesReceived = 0;
+  let liveFileStartTime = Date.now();
 
   async function handleIncomingFileData(msg, senderName) {
     if (!msg) return;
 
     if (msg.type === 'FILE_START') {
-      const sink = new FileStreamSink(msg);
-      await sink.initialize();
-      const transferId = msg.transferId || ('tx_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7));
-
-      if (activeSinksMap.size === 0) {
-        totalIncomingBatchExpected = 0;
-        totalIncomingBatchReceived = 0;
-        incomingBatchStartTime = Date.now();
-      }
-      totalIncomingBatchExpected += (msg.size || 0);
-
-      activeSinksMap.set(transferId, {
-        sink,
-        meta: msg,
-        totalExpected: msg.size || 0,
-        bytesReceived: 0,
-        startTime: Date.now()
-      });
+      liveSink = new FileStreamSink(msg);
+      await liveSink.initialize();
+      liveTotalExpected = msg.size || 0;
+      liveBytesReceived = 0;
+      liveFileStartTime = Date.now();
 
       // Immediately render WhatsApp downloading card inside the chat feed!
       appendIncomingDownloadingCard({
         sender: senderName || 'Peer',
         file: { name: msg.name, size: msg.size, mimeType: msg.mimeType, isVoiceNote: msg.isVoiceNote },
-        transferId
+        transferId: msg.transferId
       });
 
       if (liveTransferBar) liveTransferBar.style.display = 'flex';
-      if (liveTransferLabel) {
-        liveTransferLabel.textContent = activeSinksMap.size === 1
-          ? `Receiving ${msg.name}...`
-          : `Receiving ${activeSinksMap.size} files in parallel...`;
-      }
+      if (liveTransferLabel) liveTransferLabel.textContent = `Receiving ${msg.name}...`;
       if (liveTransferFill) liveTransferFill.style.width = '0%';
       if (liveTransferStats) liveTransferStats.textContent = '0% · 0.0 MB/s';
     } else if (msg.type === 'CHUNK') {
-      const transferId = msg.transferId || (activeSinksMap.keys().next().value);
-      const item = activeSinksMap.get(transferId);
-      if (item) {
+      if (liveSink) {
         let chunkData = msg.chunk;
         if (typeof chunkData === 'string' && msg.isBase64) {
+          const binaryStr = atob(chunkData);
+          const len = binaryStr.length;
+          const bytes = new Uint8Array(len);
+          for (let i = 0; i < len; i++) {
+            bytes[i] = binaryStr.charCodeAt(i);
+          }
+          chunkData = bytes.buffer;
           chunkData = base64ToUint8(chunkData).buffer;
         }
-        await item.sink.writeChunk(chunkData, msg.chunkIndex);
-        const len = (chunkData.byteLength || chunkData.length || 0);
-        item.bytesReceived += len;
-        totalIncomingBatchReceived += len;
+        await liveSink.writeChunk(chunkData);
+        await liveSink.writeChunk(chunkData, msg.chunkIndex);
+        liveBytesReceived += (chunkData.byteLength || chunkData.length || 0);
 
-        const filePct = item.totalExpected > 0 ? Math.min(100, Math.round((item.bytesReceived / item.totalExpected) * 100)) : 0;
-        const fileElapsed = (Date.now() - item.startTime) / 1000;
-        const fileSpeed = fileElapsed > 0.3 ? (item.bytesReceived / fileElapsed / (1024 * 1024)).toFixed(1) : '0.0';
+        const pct = liveTotalExpected > 0 ? Math.min(100, Math.round((liveBytesReceived / liveTotalExpected) * 100)) : 0;
+        const elapsed = (Date.now() - liveFileStartTime) / 1000;
+        const speed = elapsed > 0.3 ? (liveBytesReceived / elapsed / (1024 * 1024)).toFixed(1) : '0.0';
 
         // Real-time WhatsApp circular progress and status update
         updateIncomingDownloadingCard({
-          transferId,
-          receivedBytes: item.bytesReceived,
-          totalBytes: item.totalExpected,
-          speedMBs: fileSpeed
+          transferId: msg.transferId,
+          receivedBytes: liveBytesReceived,
+          totalBytes: liveTotalExpected,
+          speedMBs: speed
         });
 
-        const overallPct = totalIncomingBatchExpected > 0 ? Math.min(100, Math.round((totalIncomingBatchReceived / totalIncomingBatchExpected) * 100)) : filePct;
-        const overallElapsed = (Date.now() - incomingBatchStartTime) / 1000;
-        const overallSpeed = overallElapsed > 0.3 ? (totalIncomingBatchReceived / overallElapsed / (1024 * 1024)).toFixed(1) : fileSpeed;
-
-        if (liveTransferFill) liveTransferFill.style.width = `${overallPct}%`;
-        if (liveTransferStats) liveTransferStats.textContent = `${overallPct}% · ${overallSpeed} MB/s`;
+        if (liveTransferFill) liveTransferFill.style.width = `${pct}%`;
+        if (liveTransferStats) liveTransferStats.textContent = `${pct}% · ${speed} MB/s`;
       }
     } else if (msg.type === 'FILE_END') {
-      const transferId = msg.transferId || (activeSinksMap.keys().next().value);
-      const item = activeSinksMap.get(transferId);
-      if (item) {
-        activeSinksMap.delete(transferId);
-        const currentSinkMeta = { ...item.meta };
-        const res = await item.sink.finalize();
+      if (liveSink) {
+        const currentSinkMeta = { ...liveSink.meta };
+        const currentSink = liveSink;
+        liveSink = null;
+
+        const res = await currentSink.finalize();
         const recSha256 = await computeBlobOrFileSHA256(res.file);
         const verified = (!msg.sha256 || recSha256 === msg.sha256);
 
         // Morph downloading bubble into completed preview card
         finalizeIncomingChatCard({
-          transferId,
+          transferId: currentSinkMeta.transferId || msg.transferId,
           sender: senderName || 'Peer',
           file: {
             name: currentSinkMeta.name,
@@ -1654,6 +1477,7 @@ document.addEventListener('DOMContentLoaded', () => {
             mimeType: currentSinkMeta.mimeType,
             isVoiceNote: currentSinkMeta.isVoiceNote
           },
+          isMine: false,
           downloadUrl: res.url,
           verified,
           rawBlob: res.file
@@ -1662,7 +1486,7 @@ document.addEventListener('DOMContentLoaded', () => {
         // Send delivery acknowledgment back so sender updates single ✓ to Double Blue Tick ✓✓
         sendPacket({
           type: 'FILE_ACK',
-          transferId,
+          transferId: currentSinkMeta.transferId || msg.transferId,
           name: currentSinkMeta.name
         });
 
@@ -1681,10 +1505,6 @@ document.addEventListener('DOMContentLoaded', () => {
           document.body.appendChild(a);
           a.click();
           document.body.removeChild(a);
-        }
-
-        if (activeSinksMap.size === 0 && liveTransferBar) {
-          setTimeout(() => { liveTransferBar.style.display = 'none'; }, 1500);
         }
       }
     } else if (msg.type === 'ALL_COMPLETE') {
@@ -1708,7 +1528,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     participantsRoster.clear();
     for (const [peerId, conn] of activePeersMap.entries()) {
-      try { conn.close(); } catch (_) {}
+      try { conn.close(); } catch (_) { }
     }
     activePeersMap.clear();
 
@@ -1722,10 +1542,10 @@ document.addEventListener('DOMContentLoaded', () => {
       }
       sessionStorage.removeItem('ld_active_code');
       window.history.replaceState({}, '', window.location.origin);
-    } catch (_) {}
-    if (activeRelay) { try { activeRelay.close(); } catch(_) {} activeRelay = null; }
-    if (activeConnection) { try { activeConnection.close(); } catch(_) {} activeConnection = null; }
-    if (activePeer) { try { activePeer.destroy(); } catch(_) {} activePeer = null; }
+    } catch (_) { }
+    if (activeRelay) { try { activeRelay.close(); } catch (_) { } activeRelay = null; }
+    if (activeConnection) { try { activeConnection.close(); } catch (_) { } activeConnection = null; }
+    if (activePeer) { try { activePeer.destroy(); } catch (_) { } activePeer = null; }
     if (roomEndedModal) {
       if (roomEndedReason) roomEndedReason.textContent = reason || 'The host or connected peer disconnected. All temporary transfer memory was securely cleared.';
       roomEndedModal.style.display = 'flex';
@@ -1875,17 +1695,56 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   // =========================================================================
+  // 8. DIRECT-TO-DISK RECEIVER STREAMING SINK
   // 8. ULTRA-FAST HIGH-THROUGHPUT RECEIVER STREAMING SINK (In-Memory Parallel Assembly)
   // =========================================================================
   class FileStreamSink {
     constructor(fileMeta) {
       this.meta = fileMeta;
+      this.writable = null;
+      this.fileHandle = null;
+      this.opfsHandle = null;
+      this.fallbackParts = [];
       this.chunks = [];
       this.totalWritten = 0;
+      this.sinkType = 'fallback';
       this.totalExpected = fileMeta.size || 0;
     }
 
     async initialize() {
+      // 1. Try File System Access API
+      if (typeof window !== 'undefined' && 'showSaveFilePicker' in window) {
+        try {
+          const ext = this.meta.name.includes('.') ? this.meta.name.split('.').pop() : '';
+          const pickerOptions = {
+            suggestedName: this.meta.name,
+            types: ext ? [{
+              description: `${ext.toUpperCase()} File`,
+              accept: { [this.meta.mimeType || 'application/octet-stream']: [`.${ext}`] }
+            }] : []
+          };
+          this.fileHandle = await window.showSaveFilePicker(pickerOptions);
+          this.writable = await this.fileHandle.createWritable();
+          this.sinkType = 'fsa';
+          return;
+        } catch (_) { }
+      }
+
+      // 2. Try OPFS
+      if (typeof navigator !== 'undefined' && navigator.storage && navigator.storage.getDirectory) {
+        try {
+          const root = await navigator.storage.getDirectory();
+          const safeName = `lynqdrop_${Date.now()}_${this.meta.name.replace(/[^a-zA-Z0-9._-]/g, '_')}`;
+          this.opfsHandle = await root.getFileHandle(safeName, { create: true });
+          this.writable = await this.opfsHandle.createWritable();
+          this.sinkType = 'opfs';
+          return;
+        } catch (_) { }
+      }
+
+      // 3. Fallback to memory blob parts
+      this.sinkType = 'fallback';
+      this.fallbackParts = [];
       this.chunks = [];
       this.totalWritten = 0;
     }
@@ -1893,704 +1752,726 @@ document.addEventListener('DOMContentLoaded', () => {
     async writeChunk(chunk, chunkIndex) {
       const len = chunk.byteLength || chunk.length || 0;
       this.totalWritten += len;
+      if (this.writable) {
+        await this.writable.write(chunk);
+        return;
+      }
       if (typeof chunkIndex === 'number') {
         this.chunks[chunkIndex] = chunk;
       } else {
+        this.fallbackParts.push(new Blob([chunk]));
         this.chunks.push(chunk);
       }
     }
 
     async finalize() {
-      const blob = new Blob(this.chunks, { type: this.meta.mimeType || 'application/octet-stream' });
-      this.chunks = [];
-      const url = URL.createObjectURL(blob);
-      return { file: blob, directSaved: false, url };
-    }
-  }
+          if (this.writable) {
+            await this.writable.close();
+            this.writable = null;
+          }
 
-  // =========================================================================
-  // 8.5 ZERO-LATENCY HIGH-SPEED WEBSOCKET MQTT RELAY
-  // Powered by standard port 8884 TLS WebSocket broker (HiveMQ) + fallback
-  // Works globally across strict carrier Symmetric NAT (4G/5G/CGNAT) & Wi-Fi
-  // =========================================================================
-  class BrowserMicroMQTT {
-    constructor(brokerUrl, clientId) {
-      this.url = brokerUrl;
-      this.clientId = clientId || 'ld_' + Math.random().toString(36).slice(2, 9);
-      this.handlers = new Map();
-      this.ws = null;
-      this.connected = false;
-      this.closed = false;
-    }
+          if (this.sinkType === 'fsa' && this.fileHandle) {
+            const file = await this.fileHandle.getFile();
+            return { file, directSaved: true, url: null };
+          }
 
-    connect() {
-      return new Promise((resolve) => {
-        let resolved = false;
-        const done = (ok) => { if (!resolved) { resolved = true; resolve(ok); } };
+          if (this.sinkType === 'opfs' && this.opfsHandle) {
+            const file = await this.opfsHandle.getFile();
+            const url = URL.createObjectURL(file);
+            return { file, directSaved: false, url };
+          }
 
-        try {
-          this.ws = new WebSocket(this.url, 'mqtt');
-          this.ws.binaryType = 'arraybuffer';
+          const blob = new Blob(this.chunks.length > 0 ? this.chunks : this.fallbackParts, { type: this.meta.mimeType || 'application/octet-stream' });
+          this.fallbackParts = [];
+          this.chunks = [];
+          const url = URL.createObjectURL(blob);
+          return { file: blob, directSaved: false, url };
+        }
+      }
 
-          this.ws.onopen = () => {
-            const te = new TextEncoder();
-            const proto = te.encode('MQTT');
-            const cid = te.encode(this.clientId);
-            const remainLen = 10 + (2 + cid.length);
-            const pkt = new Uint8Array(2 + remainLen);
-            pkt[0] = 0x10; // CONNECT
-            pkt[1] = remainLen;
-            pkt[2] = 0x00; pkt[3] = 0x04;
-            pkt.set(proto, 4);
-            pkt[8] = 0x04; // level 4
-            pkt[9] = 0x02; // clean session
-            pkt[10] = 0x00; pkt[11] = 0x3c; // keepalive 60s
-            pkt[12] = 0x00; pkt[13] = cid.length;
-            pkt.set(cid, 14);
-            this.ws.send(pkt);
-          };
+      // =========================================================================
+      // 8.5 ZERO-LATENCY HIGH-SPEED WEBSOCKET MQTT RELAY
+      // Powered by standard port 8884 TLS WebSocket broker (HiveMQ) + fallback
+      // Works globally across strict carrier Symmetric NAT (4G/5G/CGNAT) & Wi-Fi
+      // =========================================================================
+      class BrowserMicroMQTT {
+        constructor(brokerUrl, clientId) {
+          this.url = brokerUrl;
+          this.clientId = clientId || 'ld_' + Math.random().toString(36).slice(2, 9);
+          this.handlers = new Map();
+          this.ws = null;
+          this.connected = false;
+          this.closed = false;
+        }
 
-          this.ws.onmessage = (ev) => {
-            const buf = new Uint8Array(ev.data);
-            const type = (buf[0] >> 4) & 0x0F;
-            if (type === 2) { // CONNACK
-              this.connected = true;
-              for (const topic of this.handlers.keys()) {
-                this._sendSubscribe(topic);
-              }
-              done(true);
-            } else if (type === 3) { // PUBLISH
-              let pos = 1;
-              let multiplier = 1, remLen = 0, digit;
-              do {
-                digit = buf[pos++];
-                remLen += (digit & 127) * multiplier;
-                multiplier *= 128;
-              } while ((digit & 128) !== 0);
+        connect() {
+          return new Promise((resolve) => {
+            let resolved = false;
+            const done = (ok) => { if (!resolved) { resolved = true; resolve(ok); } };
 
-              const topicLen = (buf[pos] << 8) | buf[pos + 1];
-              pos += 2;
-              const topBytes = buf.subarray(pos, pos + topicLen);
-              pos += topicLen;
-              const td = new TextDecoder();
-              const recTopic = td.decode(topBytes);
-              const payload = td.decode(buf.subarray(pos));
-              const cb = this.handlers.get(recTopic);
-              if (cb) {
-                cb(payload);
-              } else {
-                for (const [top, fn] of this.handlers.entries()) {
-                  if (fn) fn(payload);
+            try {
+              this.ws = new WebSocket(this.url, 'mqtt');
+              this.ws.binaryType = 'arraybuffer';
+
+              this.ws.onopen = () => {
+                const te = new TextEncoder();
+                const proto = te.encode('MQTT');
+                const cid = te.encode(this.clientId);
+                const remainLen = 10 + (2 + cid.length);
+                const pkt = new Uint8Array(2 + remainLen);
+                pkt[0] = 0x10; // CONNECT
+                pkt[1] = remainLen;
+                pkt[2] = 0x00; pkt[3] = 0x04;
+                pkt.set(proto, 4);
+                pkt[8] = 0x04; // level 4
+                pkt[9] = 0x02; // clean session
+                pkt[10] = 0x00; pkt[11] = 0x3c; // keepalive 60s
+                pkt[12] = 0x00; pkt[13] = cid.length;
+                pkt.set(cid, 14);
+                this.ws.send(pkt);
+              };
+
+              this.ws.onmessage = (ev) => {
+                const buf = new Uint8Array(ev.data);
+                const type = (buf[0] >> 4) & 0x0F;
+                if (type === 2) { // CONNACK
+                  this.connected = true;
+                  for (const topic of this.handlers.keys()) {
+                    this._sendSubscribe(topic);
+                  }
+                  done(true);
+                } else if (type === 3) { // PUBLISH
+                  let pos = 1;
+                  let multiplier = 1, remLen = 0, digit;
+                  do {
+                    digit = buf[pos++];
+                    remLen += (digit & 127) * multiplier;
+                    multiplier *= 128;
+                  } while ((digit & 128) !== 0);
+
+                  const topicLen = (buf[pos] << 8) | buf[pos + 1];
+                  pos += 2;
+                  const topBytes = buf.subarray(pos, pos + topicLen);
+                  pos += topicLen;
+                  const td = new TextDecoder();
+                  const recTopic = td.decode(topBytes);
+                  const payload = td.decode(buf.subarray(pos));
+                  const cb = this.handlers.get(recTopic);
+                  if (cb) {
+                    cb(payload);
+                  } else {
+                    for (const [top, fn] of this.handlers.entries()) {
+                      if (fn) fn(payload);
+                    }
+                  }
                 }
-              }
-            }
-          };
+              };
 
-          this.ws.onerror = () => done(false);
-          this.ws.onclose = () => {
-            this.connected = false;
-            if (!this.closed) setTimeout(() => this.connect(), 2000);
-          };
-        } catch (e) {
-          done(false);
-        }
-        setTimeout(() => done(this.connected), 4000);
-      });
-    }
-
-    _sendSubscribe(topic) {
-      if (!this.ws || this.ws.readyState !== WebSocket.OPEN) return;
-      const te = new TextEncoder();
-      const top = te.encode(topic);
-      const remainLen = 2 + (2 + top.length) + 1;
-      const pkt = new Uint8Array(2 + remainLen);
-      pkt[0] = 0x82; // SUBSCRIBE
-      pkt[1] = remainLen;
-      pkt[2] = 0x00; pkt[3] = 0x01;
-      pkt[4] = 0x00; pkt[5] = top.length;
-      pkt.set(top, 6);
-      pkt[6 + top.length] = 0x00; // QoS 0
-      this.ws.send(pkt);
-    }
-
-    subscribe(topic, cb) {
-      this.handlers.set(topic, cb);
-      if (this.connected) this._sendSubscribe(topic);
-    }
-
-    publish(topic, payload) {
-      if (!this.ws || this.ws.readyState !== WebSocket.OPEN) return false;
-      const te = new TextEncoder();
-      const top = te.encode(topic);
-      const pay = typeof payload === 'string' ? te.encode(payload) : payload;
-      const remainLen = (2 + top.length) + pay.length;
-
-      let lenBytes = [];
-      let rem = remainLen;
-      do {
-        let b = rem % 128;
-        rem = Math.floor(rem / 128);
-        if (rem > 0) b |= 128;
-        lenBytes.push(b);
-      } while (rem > 0);
-
-      const pkt = new Uint8Array(1 + lenBytes.length + (2 + top.length) + pay.length);
-      pkt[0] = 0x30; // PUBLISH QoS 0
-      pkt.set(lenBytes, 1);
-      let offset = 1 + lenBytes.length;
-      pkt[offset] = 0x00; pkt[offset + 1] = top.length;
-      offset += 2;
-      pkt.set(top, offset);
-      offset += top.length;
-      pkt.set(pay, offset);
-      this.ws.send(pkt);
-      return true;
-    }
-
-    close() {
-      this.closed = true;
-      try { if (this.ws) this.ws.close(); } catch (_) {}
-    }
-  }
-
-  class BrowserRelay {
-    constructor(roomCode, role, onPacket, clientId) {
-      const cleanCode = (roomCode || '').toLowerCase().replace(/[^a-z0-9]/g, '');
-      this.roomCode = cleanCode;
-      this.role = role; // 'sender' | 'receiver'
-      this.clientId = clientId || ('c_' + Math.random().toString(36).slice(2, 10));
-      this.onPacket = onPacket;
-      this.connected = false;
-      this.closed = false;
-
-      // Group broadcast topic for all peers in the room + unicast topic + legacy topics
-      this.groupTopic = `lynqdrop/v1/${cleanCode}/group`;
-      this.directTopic = `lynqdrop/v1/${cleanCode}/to-${this.clientId}`;
-      this.subLegacyTopic = role === 'sender' ? `lynqdrop/v1/${cleanCode}/to-sender` : `lynqdrop/v1/${cleanCode}/to-receiver`;
-      this.pubLegacyTopic = role === 'sender' ? `lynqdrop/v1/${cleanCode}/to-receiver` : `lynqdrop/v1/${cleanCode}/to-sender`;
-
-      this.client = null;
-      this.seenIds = new Set();
-    }
-
-    connect() {
-      if (this.closed) return Promise.resolve(false);
-      return new Promise((resolve) => {
-        let isResolved = false;
-        const done = (ok) => {
-          if (!isResolved) {
-            isResolved = true;
-            this.connected = ok;
-            resolve(ok);
-          }
-        };
-
-        const handleIncoming = (strPayload) => {
-          try {
-            const parsed = JSON.parse(strPayload);
-            if (!parsed) return;
-            // Ignore messages from self
-            if (parsed.senderId && parsed.senderId === this.clientId) return;
-            // Deduplicate packet id
-            if (parsed.id && this.seenIds.has(parsed.id)) return;
-            if (parsed.id) this.seenIds.add(parsed.id);
-            if (this.onPacket) this.onPacket(parsed, 'relay');
-          } catch (e) {
-            console.warn('[BrowserRelay] MQTT JSON parse error:', e);
-          }
-        };
-
-        try {
-          if (typeof mqtt !== 'undefined' && mqtt.connect) {
-            this.client = mqtt.connect('wss://broker.hivemq.com:8884/mqtt', {
-              clean: true,
-              connectTimeout: 5000,
-              reconnectPeriod: 2000,
-              clientId: 'ld_' + this.role + '_' + this.clientId
-            });
-
-            this.client.on('connect', () => {
-              console.log(`[BrowserRelay] MQTT connected as ${this.role} (${this.clientId})`);
-              this.connected = true;
-              const topics = [this.groupTopic, this.directTopic, this.subLegacyTopic];
-              this.client.subscribe(topics, { qos: 0 }, (err) => {
-                if (err) console.warn('[BrowserRelay] Subscribe error:', err);
-                else console.log(`[BrowserRelay] Subscribed to ${topics.join(', ')}`);
-                done(true);
-              });
-            });
-
-            this.client.on('message', (topic, payload) => {
-              handleIncoming(payload.toString());
-            });
-
-            this.client.on('error', (err) => {
-              console.warn('[BrowserRelay] MQTT client error:', err);
+              this.ws.onerror = () => done(false);
+              this.ws.onclose = () => {
+                this.connected = false;
+                if (!this.closed) setTimeout(() => this.connect(), 2000);
+              };
+            } catch (e) {
               done(false);
-            });
-          } else {
-            this.client = new BrowserMicroMQTT('wss://broker.hivemq.com:8884/mqtt', 'ld_' + this.role + '_' + this.clientId);
-            this.client.connect().then((ok) => {
-              if (ok) {
-                this.client.subscribe(this.groupTopic, handleIncoming);
-                this.client.subscribe(this.directTopic, handleIncoming);
-                this.client.subscribe(this.subLegacyTopic, handleIncoming);
-              }
-              done(ok);
-            });
-          }
-        } catch (e) {
-          console.warn('[BrowserRelay] init exception:', e);
-          done(false);
+            }
+            setTimeout(() => done(this.connected), 4000);
+          });
         }
 
-        setTimeout(() => done(this.connected), 4000);
-      });
-    }
-
-    publish(obj, isKeepAlive = false) {
-      if (this.closed) return false;
-      try {
-        if (!obj.id) {
-          obj.id = 'p_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7);
+        _sendSubscribe(topic) {
+          if (!this.ws || this.ws.readyState !== WebSocket.OPEN) return;
+          const te = new TextEncoder();
+          const top = te.encode(topic);
+          const remainLen = 2 + (2 + top.length) + 1;
+          const pkt = new Uint8Array(2 + remainLen);
+          pkt[0] = 0x82; // SUBSCRIBE
+          pkt[1] = remainLen;
+          pkt[2] = 0x00; pkt[3] = 0x01;
+          pkt[4] = 0x00; pkt[5] = top.length;
+          pkt.set(top, 6);
+          pkt[6 + top.length] = 0x00; // QoS 0
+          this.ws.send(pkt);
         }
-        if (!obj.senderId) {
-          obj.senderId = this.clientId;
-        }
-        this.seenIds.add(obj.id);
-        const payload = JSON.stringify(obj);
 
-        if (this.client && typeof this.client.publish === 'function') {
-          // Broadcast to shared room group topic
-          this.client.publish(this.groupTopic, payload, { qos: 0 });
-          // Also publish to legacy 1-to-1 topic for backward compatibility
-          this.client.publish(this.pubLegacyTopic, payload, { qos: 0 });
+        subscribe(topic, cb) {
+          this.handlers.set(topic, cb);
+          if (this.connected) this._sendSubscribe(topic);
+        }
+
+        publish(topic, payload) {
+          if (!this.ws || this.ws.readyState !== WebSocket.OPEN) return false;
+          const te = new TextEncoder();
+          const top = te.encode(topic);
+          const pay = typeof payload === 'string' ? te.encode(payload) : payload;
+          const remainLen = (2 + top.length) + pay.length;
+
+          let lenBytes = [];
+          let rem = remainLen;
+          do {
+            let b = rem % 128;
+            rem = Math.floor(rem / 128);
+            if (rem > 0) b |= 128;
+            lenBytes.push(b);
+          } while (rem > 0);
+
+          const pkt = new Uint8Array(1 + lenBytes.length + (2 + top.length) + pay.length);
+          pkt[0] = 0x30; // PUBLISH QoS 0
+          pkt.set(lenBytes, 1);
+          let offset = 1 + lenBytes.length;
+          pkt[offset] = 0x00; pkt[offset + 1] = top.length;
+          offset += 2;
+          pkt.set(top, offset);
+          offset += top.length;
+          pkt.set(pay, offset);
+          this.ws.send(pkt);
           return true;
         }
-        return false;
-      } catch (err) {
-        console.warn('[BrowserRelay] Publish failed:', err);
-        return false;
-      }
-    }
 
-    close() {
-      this.closed = true;
-      this.connected = false;
-      try {
-        if (this.client && typeof this.client.end === 'function') {
-          this.client.end(true);
-        } else if (this.client && typeof this.client.close === 'function') {
-          this.client.close();
-        }
-      } catch (_) {}
-      this.client = null;
-    }
-  }
-
-  // Dual transport state & outbox queues
-  let activeRelay = null;
-  let webrtcConfirmed = false;
-  const seenPacketIds = new Set();
-  const pendingOutbox = [];
-  const pendingFilesQueue = [];
-
-  function flushPendingOutbox() {
-    const hasP2P = activeConnection && (activeConnection.open || (activeConnection.dataChannel && activeConnection.dataChannel.readyState === 'open'));
-    const hasRelay = activeRelay && activeRelay.connected;
-    if (hasP2P || hasRelay) {
-      if (pendingOutbox.length > 0) {
-        console.log(`[LynqDrop] Flushing ${pendingOutbox.length} queued messages from outbox`);
-        const toSend = [...pendingOutbox];
-        pendingOutbox.length = 0;
-        for (const pkt of toSend) {
-          const ok = sendPacket(pkt);
-          if (!ok) pendingOutbox.push(pkt);
+        close() {
+          this.closed = true;
+          try { if (this.ws) this.ws.close(); } catch (_) { }
         }
       }
-      if (pendingFilesQueue.length > 0) {
-        console.log(`[LynqDrop] Flushing ${pendingFilesQueue.length} queued files from outbox`);
-        const files = [...pendingFilesQueue];
-        pendingFilesQueue.length = 0;
-        sendLiveFiles(files);
-      }
-    }
-  }
-  setInterval(flushPendingOutbox, 400);
 
-  function updateLivePeerStatus() {
-    if (!livePeerStatusText) return;
-    const hasP2P = activeConnection && (activeConnection.open || (activeConnection.dataChannel && activeConnection.dataChannel.readyState === 'open'));
-    const hasRelay = activeRelay && activeRelay.connected;
-    if (hasP2P) {
-      livePeerStatusText.textContent = 'online • Direct P2P Encrypted';
-    } else if (hasRelay) {
-      livePeerStatusText.textContent = 'online • Fast Relay Encrypted';
-    } else {
-      livePeerStatusText.textContent = 'connecting • Handshaking...';
-    }
-  }
-  setInterval(updateLivePeerStatus, 1000);
+      class BrowserRelay {
+        constructor(roomCode, role, onPacket, clientId) {
+          const cleanCode = (roomCode || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+          this.roomCode = cleanCode;
+          this.role = role; // 'sender' | 'receiver'
+          this.clientId = clientId || ('c_' + Math.random().toString(36).slice(2, 10));
+          this.onPacket = onPacket;
+          this.connected = false;
+          this.closed = false;
 
-  function sendPacket(packet, isKeepAlive = false) {
-    if (!packet) return false;
-    if (!packet.id) {
-      packet.id = 'p_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7);
-    }
-    if (!packet.senderId) {
-      packet.senderId = myClientId;
-    }
-    seenPacketIds.add(packet.id);
+          // Group broadcast topic for all peers in the room + unicast topic + legacy topics
+          this.groupTopic = `lynqdrop/v1/${cleanCode}/group`;
+          this.directTopic = `lynqdrop/v1/${cleanCode}/to-${this.clientId}`;
+          this.subLegacyTopic = role === 'sender' ? `lynqdrop/v1/${cleanCode}/to-sender` : `lynqdrop/v1/${cleanCode}/to-receiver`;
+          this.pubLegacyTopic = role === 'sender' ? `lynqdrop/v1/${cleanCode}/to-receiver` : `lynqdrop/v1/${cleanCode}/to-sender`;
 
-    let sent = false;
-    // Broadcast via WebRTC to all connected peers
-    for (const [peerId, conn] of activePeersMap.entries()) {
-      try {
-        const dc = conn.dataChannel || conn._dc;
-        if (conn.open || (dc && dc.readyState === 'open')) {
-          conn.send(packet);
-          sent = true;
+          this.client = null;
+          this.seenIds = new Set();
         }
-      } catch (e) {
-        console.warn(`[LynqDrop] WebRTC send to ${peerId} failed:`, e);
-      }
-    }
 
-    if (!sent && activeConnection) {
-      try {
-        const dc = activeConnection.dataChannel || activeConnection._dc;
-        if (activeConnection.open || (dc && dc.readyState === 'open')) {
-          activeConnection.send(packet);
-          sent = true;
+        connect() {
+          if (this.closed) return Promise.resolve(false);
+          return new Promise((resolve) => {
+            let isResolved = false;
+            const done = (ok) => {
+              if (!isResolved) {
+                isResolved = true;
+                this.connected = ok;
+                resolve(ok);
+              }
+            };
+
+            const handleIncoming = (strPayload) => {
+              try {
+                const parsed = JSON.parse(strPayload);
+                if (!parsed) return;
+                // Ignore messages from self
+                if (parsed.senderId && parsed.senderId === this.clientId) return;
+                // Deduplicate packet id
+                if (parsed.id && this.seenIds.has(parsed.id)) return;
+                if (parsed.id) this.seenIds.add(parsed.id);
+                if (this.onPacket) this.onPacket(parsed, 'relay');
+              } catch (e) {
+                console.warn('[BrowserRelay] MQTT JSON parse error:', e);
+              }
+            };
+
+            try {
+              if (typeof mqtt !== 'undefined' && mqtt.connect) {
+                this.client = mqtt.connect('wss://broker.hivemq.com:8884/mqtt', {
+                  clean: true,
+                  connectTimeout: 5000,
+                  reconnectPeriod: 2000,
+                  clientId: 'ld_' + this.role + '_' + this.clientId
+                });
+
+                this.client.on('connect', () => {
+                  console.log(`[BrowserRelay] MQTT connected as ${this.role} (${this.clientId})`);
+                  this.connected = true;
+                  const topics = [this.groupTopic, this.directTopic, this.subLegacyTopic];
+                  this.client.subscribe(topics, { qos: 0 }, (err) => {
+                    if (err) console.warn('[BrowserRelay] Subscribe error:', err);
+                    else console.log(`[BrowserRelay] Subscribed to ${topics.join(', ')}`);
+                    done(true);
+                  });
+                });
+
+                this.client.on('message', (topic, payload) => {
+                  handleIncoming(payload.toString());
+                });
+
+                this.client.on('error', (err) => {
+                  console.warn('[BrowserRelay] MQTT client error:', err);
+                  done(false);
+                });
+              } else {
+                this.client = new BrowserMicroMQTT('wss://broker.hivemq.com:8884/mqtt', 'ld_' + this.role + '_' + this.clientId);
+                this.client.connect().then((ok) => {
+                  if (ok) {
+                    this.client.subscribe(this.groupTopic, handleIncoming);
+                    this.client.subscribe(this.directTopic, handleIncoming);
+                    this.client.subscribe(this.subLegacyTopic, handleIncoming);
+                  }
+                  done(ok);
+                });
+              }
+            } catch (e) {
+              console.warn('[BrowserRelay] init exception:', e);
+              done(false);
+            }
+
+            setTimeout(() => done(this.connected), 4000);
+          });
         }
-      } catch (_) {}
-    }
 
-    // Always broadcast via Relay (shared group topic)
-    if (activeRelay && activeRelay.connected) {
-      try {
-        activeRelay.publish(packet, isKeepAlive);
-        sent = true;
-      } catch (e) {
-        console.warn('[LynqDrop] Relay publish failed:', e);
-      }
-    }
-    return sent;
-  }
+        publish(obj, isKeepAlive = false) {
+          if (this.closed) return false;
+          try {
+            if (!obj.id) {
+              obj.id = 'p_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7);
+            }
+            if (!obj.senderId) {
+              obj.senderId = this.clientId;
+            }
+            this.seenIds.add(obj.id);
+            const payload = JSON.stringify(obj);
 
-  function fanOutToPeers(data, excludePeerId) {
-    if (!isSenderRole) return;
-    for (const [peerId, otherConn] of activePeersMap.entries()) {
-      if (peerId !== excludePeerId) {
-        try {
-          const dc = otherConn.dataChannel || otherConn._dc;
-          if (otherConn.open || (dc && dc.readyState === 'open')) {
-            otherConn.send(data);
+            if (this.client && typeof this.client.publish === 'function') {
+              // Broadcast to shared room group topic
+              this.client.publish(this.groupTopic, payload, { qos: 0 });
+              // Also publish to legacy 1-to-1 topic for backward compatibility
+              this.client.publish(this.pubLegacyTopic, payload, { qos: 0 });
+              return true;
+            }
+            return false;
+          } catch (err) {
+            console.warn('[BrowserRelay] Publish failed:', err);
+            return false;
           }
-        } catch (e) {
-          console.warn(`[LynqDrop] Fan-out to ${peerId} failed:`, e);
+        }
+
+        close() {
+          this.closed = true;
+          this.connected = false;
+          try {
+            if (this.client && typeof this.client.end === 'function') {
+              this.client.end(true);
+            } else if (this.client && typeof this.client.close === 'function') {
+              this.client.close();
+            }
+          } catch (_) { }
+          this.client = null;
         }
       }
-    }
-  }
 
-  function handleIncomingPacket(msg, source) {
-    if (!msg) return;
-    if (msg.senderId && msg.senderId === myClientId) return;
-    if (msg.id && seenPacketIds.has(msg.id)) return;
-    if (msg.id) seenPacketIds.add(msg.id);
+      // Dual transport state & outbox queues
+      let activeRelay = null;
+      let webrtcConfirmed = false;
+      const seenPacketIds = new Set();
+      const pendingOutbox = [];
+      const pendingFilesQueue = [];
 
-    if (source === 'webrtc') {
-      webrtcConfirmed = true;
-    }
+      function flushPendingOutbox() {
+        const hasP2P = activeConnection && (activeConnection.open || (activeConnection.dataChannel && activeConnection.dataChannel.readyState === 'open'));
+        const hasRelay = activeRelay && activeRelay.connected;
+        if (hasP2P || hasRelay) {
+          if (pendingOutbox.length > 0) {
+            console.log(`[LynqDrop] Flushing ${pendingOutbox.length} queued messages from outbox`);
+            const toSend = [...pendingOutbox];
+            pendingOutbox.length = 0;
+            for (const pkt of toSend) {
+              const ok = sendPacket(pkt);
+              if (!ok) pendingOutbox.push(pkt);
+            }
+          }
+          if (pendingFilesQueue.length > 0) {
+            console.log(`[LynqDrop] Flushing ${pendingFilesQueue.length} queued files from outbox`);
+            const files = [...pendingFilesQueue];
+            pendingFilesQueue.length = 0;
+            sendLiveFiles(files);
+          }
+        }
+      }
+      setInterval(flushPendingOutbox, 400);
 
-    console.log(`[LynqDrop Packet Received via ${source || 'unknown'}]:`, msg.type);
+      function updateLivePeerStatus() {
+        if (!livePeerStatusText) return;
+        const hasP2P = activeConnection && (activeConnection.open || (activeConnection.dataChannel && activeConnection.dataChannel.readyState === 'open'));
+        const hasRelay = activeRelay && activeRelay.connected;
+        if (hasP2P) {
+          livePeerStatusText.textContent = 'online • Direct P2P Encrypted';
+        } else if (hasRelay) {
+          livePeerStatusText.textContent = 'online • Fast Relay Encrypted';
+        } else {
+          livePeerStatusText.textContent = 'connecting • Handshaking...';
+        }
+      }
+      setInterval(updateLivePeerStatus, 1000);
 
-    if (msg.type === 'PRESENCE_HEARTBEAT') {
-      if (msg.senderId && msg.senderId !== myClientId) {
-        participantsRoster.set(msg.senderId, {
-          id: msg.senderId,
-          alias: msg.alias || 'Participant',
-          os: msg.os || 'web',
-          isAdmin: !!msg.isAdmin,
-          isActive: !!msg.isActive,
+      function sendPacket(packet, isKeepAlive = false) {
+        if (!packet) return false;
+        if (!packet.id) {
+          packet.id = 'p_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7);
+        }
+        if (!packet.senderId) {
+          packet.senderId = myClientId;
+        }
+        seenPacketIds.add(packet.id);
+
+        let sent = false;
+        // Broadcast via WebRTC to all connected peers
+        for (const [peerId, conn] of activePeersMap.entries()) {
+          try {
+            const dc = conn.dataChannel || conn._dc;
+            if (conn.open || (dc && dc.readyState === 'open')) {
+              conn.send(packet);
+              sent = true;
+            }
+          } catch (e) {
+            console.warn(`[LynqDrop] WebRTC send to ${peerId} failed:`, e);
+          }
+        }
+
+        if (!sent && activeConnection) {
+          try {
+            const dc = activeConnection.dataChannel || activeConnection._dc;
+            if (activeConnection.open || (dc && dc.readyState === 'open')) {
+              activeConnection.send(packet);
+              sent = true;
+            }
+          } catch (_) { }
+        }
+
+        // Always broadcast via Relay (shared group topic)
+        if (activeRelay && activeRelay.connected) {
+          try {
+            activeRelay.publish(packet, isKeepAlive);
+            sent = true;
+          } catch (e) {
+            console.warn('[LynqDrop] Relay publish failed:', e);
+          }
+        }
+        return sent;
+      }
+
+      function fanOutToPeers(data, excludePeerId) {
+        if (!isSenderRole) return;
+        for (const [peerId, otherConn] of activePeersMap.entries()) {
+          if (peerId !== excludePeerId) {
+            try {
+              const dc = otherConn.dataChannel || otherConn._dc;
+              if (otherConn.open || (dc && dc.readyState === 'open')) {
+                otherConn.send(data);
+              }
+            } catch (e) {
+              console.warn(`[LynqDrop] Fan-out to ${peerId} failed:`, e);
+            }
+          }
+        }
+      }
+
+      function handleIncomingPacket(msg, source) {
+        if (!msg) return;
+        if (msg.senderId && msg.senderId === myClientId) return;
+        if (msg.id && seenPacketIds.has(msg.id)) return;
+        if (msg.id) seenPacketIds.add(msg.id);
+
+        if (source === 'webrtc') {
+          webrtcConfirmed = true;
+        }
+
+        console.log(`[LynqDrop Packet Received via ${source || 'unknown'}]:`, msg.type);
+
+        if (msg.type === 'PRESENCE_HEARTBEAT') {
+          if (msg.senderId && msg.senderId !== myClientId) {
+            participantsRoster.set(msg.senderId, {
+              id: msg.senderId,
+              alias: msg.alias || 'Participant',
+              os: msg.os || 'web',
+              isAdmin: !!msg.isAdmin,
+              isActive: !!msg.isActive,
+              lastSeen: Date.now()
+            });
+            renderPresenceUI();
+          }
+        } else if (msg.type === 'ALIAS_UPDATE') {
+          if (msg.senderId) {
+            if (participantsRoster.has(msg.senderId)) {
+              const p = participantsRoster.get(msg.senderId);
+              p.alias = msg.alias;
+            }
+            if (remoteDevice && remoteDevice.id === msg.senderId) {
+              remoteDevice.name = msg.alias;
+            }
+            renderPresenceUI();
+            if (livePeerName && !isSenderRole) {
+              livePeerName.textContent = msg.alias;
+            }
+          }
+        } else if (msg.type === 'ROOM_CONFIG_UPDATE') {
+          if (typeof msg.maxParticipants === 'number') {
+            roomMaxParticipants = msg.maxParticipants;
+            renderPresenceUI();
+            console.log('[LynqDrop] Admin updated participant limit to:', roomMaxParticipants);
+          }
+        } else if (msg.type === 'ROOM_FULL') {
+          showRoomFullModal(msg.reason);
+        } else if (msg.type === 'PEER_LEFT') {
+          if (msg.senderId) {
+            participantsRoster.delete(msg.senderId);
+            activePeersMap.delete(msg.senderId);
+            renderPresenceUI();
+          }
+        } else if (msg.type === 'SENDER_ONLINE') {
+          console.log('[LynqDrop] Sender online announcement received via relay');
+          if (msg.sender) {
+            remoteDevice = msg.sender;
+            updatePlatformBadge(myDevice, msg.sender);
+          }
+          sendPacket({
+            type: 'RECEIVER_HELLO',
+            receiver: myDevice,
+            timestamp: Date.now()
+          });
+          if (!roomPinRequired) {
+            openLiveRoom(currentRoomCode, false);
+          }
+        } else if (msg.type === 'RECEIVER_HELLO') {
+          console.log('[LynqDrop] Receiver connected via Relay/WebRTC:', msg.receiver);
+          if (msg.receiver) {
+            remoteDevice = msg.receiver;
+            updatePlatformBadge(myDevice, msg.receiver);
+            if (roomStatusLabel) roomStatusLabel.textContent = `Connected to ${msg.receiver.name || 'Receiver'} (${msg.receiver.tag || 'Web'})`;
+            if (livePeerStatusText) {
+              livePeerStatusText.textContent = `⚡ ${myDevice.name} (${myDevice.platform}) ↔ ${msg.receiver.name} (${msg.receiver.platform})`;
+            }
+          }
+
+          const requiresPin = roomPinRequired && !!roomPinValue;
+          const filesMeta = selectedFiles.map(f => ({
+            id: f.id,
+            name: f.name,
+            size: f.size,
+            mimeType: f.mimeType
+          }));
+
+          sendPacket({
+            type: 'SENDER_ACK',
+            sender: myDevice,
+            requiresPin,
+            fileCount: selectedFiles.length,
+            totalBytes: selectedFiles.reduce((acc, f) => acc + f.size, 0),
+            files: requiresPin ? [] : filesMeta
+          });
+
+          if (!requiresPin) {
+            openLiveRoom(currentRoomCode, true);
+            if (selectedFiles.length > 0) {
+              sendLiveFiles(selectedFiles.map(f => f.rawFile || f));
+            }
+          }
+        } else if (msg.type === 'HANDSHAKE' || msg.type === 'SENDER_ACK') {
+          console.log('[LynqDrop] Received sender handshake/ACK:', msg);
+          if (msg.sender) {
+            remoteDevice = msg.sender;
+            updatePlatformBadge(myDevice, msg.sender);
+            if (livePeerStatusText) {
+              livePeerStatusText.textContent = `⚡ ${myDevice.name} (${myDevice.platform}) ↔ ${msg.sender.name} (${msg.sender.platform})`;
+            }
+          }
+
+          if (msg.requiresPin) {
+            if (receiveStatusBox) receiveStatusBox.style.display = 'none';
+            const platformCard = document.getElementById('platform-connection-card');
+            if (platformCard) platformCard.style.display = 'none';
+            if (pinChallengeCard) pinChallengeCard.style.display = 'block';
+            if (inputVerifyPin) inputVerifyPin.focus();
+
+            if (btnSubmitPin) {
+              btnSubmitPin.onclick = () => {
+                const entered = (inputVerifyPin?.value || '').trim();
+                if (!entered) return;
+                if (pinErrorText) pinErrorText.style.display = 'none';
+                sendPacket({ type: 'VERIFY_PIN', pin: entered });
+              };
+            }
+          } else {
+            openLiveRoom(currentRoomCode, false);
+          }
+        } else if (msg.type === 'VERIFY_PIN') {
+          const inputPin = (msg.pin || '').trim();
+          if (inputPin === roomPinValue) {
+            console.log('[LynqDrop] Receiver PIN verified successfully');
+            sendPacket({ type: 'PIN_OK' });
+            openLiveRoom(currentRoomCode, true);
+            if (selectedFiles.length > 0) {
+              sendLiveFiles(selectedFiles.map(f => f.rawFile || f));
+            }
+          } else {
+            console.warn('[LynqDrop] Receiver provided incorrect PIN');
+            sendPacket({
+              type: 'PIN_ERROR',
+              message: 'Incorrect PIN. Please re-enter.'
+            });
+          }
+        } else if (msg.type === 'PIN_OK') {
+          if (pinChallengeCard) pinChallengeCard.style.display = 'none';
+          openLiveRoom(currentRoomCode, false);
+        } else if (msg.type === 'PIN_ERROR') {
+          if (pinErrorText) {
+            pinErrorText.style.display = 'block';
+            pinErrorText.textContent = msg.message || 'Incorrect PIN. Please try again.';
+          }
+        } else if (msg.type === 'CHAT_MSG') {
+          appendChatMessage({
+            sender: msg.senderAlias || (msg.isAdmin ? '👑 Admin' : (remoteDevice && remoteDevice.name) || (isSenderRole ? 'Receiver' : 'Sender')),
+            text: msg.text,
+            time: msg.time || Date.now(),
+            isMine: false
+          });
+          // Send delivery acknowledgment back so sender can show ✓✓
+          if (msg.msgId) {
+            sendPacket({ type: 'CHAT_ACK', msgId: msg.msgId, ackFrom: myClientId });
+          }
+          // Fan out if host received via WebRTC
+          if (isSenderRole && source === 'webrtc') {
+            fanOutToPeers(msg, msg.senderId);
+          }
+        } else if (msg.type === 'CHAT_ACK') {
+          // Upgrade sender's bubble from single ✓ to double ✓✓
+          if (msg.msgId) markMessageDelivered(msg.msgId);
+        } else if (msg.type === 'FILE_ACK') {
+          // Upgrade sender's file card from single ✓ to Double Blue Tick ✓✓
+          if (msg.transferId) markFileDelivered(msg.transferId, msg.name);
+        } else if (msg.type === 'FILE_START' || msg.type === 'CHUNK' || msg.type === 'FILE_END' || msg.type === 'ALL_COMPLETE') {
+          handleIncomingFileData(msg, msg.senderAlias || (remoteDevice && remoteDevice.name) || (isSenderRole ? 'Receiver' : 'Sender'));
+          if (isSenderRole && source === 'webrtc') {
+            fanOutToPeers(msg, msg.senderId);
+          }
+        } else if (msg.type === 'ROOM_TERMINATED' || msg.type === 'ROOM_CLOSED') {
+          showRoomEndedModal(msg.reason || 'The connected peer closed their browser tab. Room session terminated.');
+        } else if (msg.type === 'TEXT') {
+          alert(`Message from peer: ${msg.text}`);
+        } else if (msg.type === 'PING') {
+          sendPacket({ type: 'PONG' });
+        }
+      }
+
+      // =========================================================================
+      // 9. HIGH-AVAILABILITY P2P ENGINE & ROOM CONTROLLER
+      // =========================================================================
+      let activePeer = null;
+      let activeConnection = null;
+      const activePeersMap = new Map(); // key: peer.id or conn.peer, value: conn
+      let currentRoomCode = null;
+      let selectedFiles = [];
+      let isSenderRole = false;
+      let isRoomAdmin = false;
+      let roomMaxParticipants = 0; // 0 = unlimited
+      let transferInProgress = false;
+
+      // Active In-Screen Presence State & Logic
+      const myClientId = 'c_' + Math.random().toString(36).slice(2, 10);
+      const participantsRoster = new Map(); // key: clientId, value: { id, alias, os, isAdmin, isActive, lastSeen }
+      let presenceHeartbeatInterval = null;
+      let presencePruneInterval = null;
+
+      function isScreenActive() {
+        if (typeof document.hidden !== 'undefined' && document.hidden) return false;
+        if (typeof document.visibilityState !== 'undefined' && document.visibilityState !== 'visible') return false;
+        return document.hasFocus ? document.hasFocus() : true;
+      }
+
+      function broadcastPresence() {
+        if (!liveRoomOpen && !currentRoomCode) return;
+        const activeNow = isScreenActive();
+        // Record self in roster
+        participantsRoster.set(myClientId, {
+          id: myClientId,
+          alias: (myDevice.name || 'Device') + ' (You)',
+          os: myDevice.platform || 'web',
+          isAdmin: isRoomAdmin,
+          isActive: activeNow,
           lastSeen: Date.now()
         });
+
+        const packet = {
+          type: 'PRESENCE_HEARTBEAT',
+          senderId: myClientId,
+          alias: myDevice.name || 'Device',
+          os: myDevice.platform || 'web',
+          isAdmin: isRoomAdmin,
+          isActive: activeNow,
+          timestamp: Date.now()
+        };
+        sendPacket(packet, true);
         renderPresenceUI();
       }
-    } else if (msg.type === 'ALIAS_UPDATE') {
-      if (msg.senderId) {
-        if (participantsRoster.has(msg.senderId)) {
-          const p = participantsRoster.get(msg.senderId);
-          p.alias = msg.alias;
+
+      function pruneAndRenderPresence() {
+        const now = Date.now();
+        for (const [id, peer] of participantsRoster.entries()) {
+          if (id !== myClientId && (now - peer.lastSeen) > 8000) {
+            participantsRoster.delete(id);
+          }
         }
-        if (remoteDevice && remoteDevice.id === msg.senderId) {
-          remoteDevice.name = msg.alias;
+        renderPresenceUI();
+      }
+
+      function renderPresenceUI() {
+        const allPeers = Array.from(participantsRoster.values());
+        const totalCount = Math.max(1, allPeers.length);
+        const inScreenCount = allPeers.filter(p => p.isActive).length;
+
+        const onlineBadge = document.getElementById('online-count-badge');
+        if (onlineBadge) {
+          if (totalCount === 1) {
+            onlineBadge.textContent = inScreenCount === 1 ? '1 in screen' : '0 in screen';
+          } else {
+            onlineBadge.textContent = `${inScreenCount} in screen · ${totalCount} connected`;
+          }
         }
-        renderPresenceUI();
-        if (livePeerName && !isSenderRole) {
-          livePeerName.textContent = msg.alias;
-        }
-      }
-    } else if (msg.type === 'ROOM_CONFIG_UPDATE') {
-      if (typeof msg.maxParticipants === 'number') {
-        roomMaxParticipants = msg.maxParticipants;
-        renderPresenceUI();
-        console.log('[LynqDrop] Admin updated participant limit to:', roomMaxParticipants);
-      }
-    } else if (msg.type === 'ROOM_FULL') {
-      showRoomFullModal(msg.reason);
-    } else if (msg.type === 'PEER_LEFT') {
-      if (msg.senderId) {
-        participantsRoster.delete(msg.senderId);
-        activePeersMap.delete(msg.senderId);
-        renderPresenceUI();
-      }
-    } else if (msg.type === 'SENDER_ONLINE') {
-      console.log('[LynqDrop] Sender online announcement received via relay');
-      if (msg.sender) {
-        remoteDevice = msg.sender;
-        updatePlatformBadge(myDevice, msg.sender);
-      }
-      sendPacket({
-        type: 'RECEIVER_HELLO',
-        receiver: myDevice,
-        timestamp: Date.now()
-      });
-      if (!roomPinRequired) {
-        openLiveRoom(currentRoomCode, false);
-      }
-    } else if (msg.type === 'RECEIVER_HELLO') {
-      console.log('[LynqDrop] Receiver connected via Relay/WebRTC:', msg.receiver);
-      if (msg.receiver) {
-        remoteDevice = msg.receiver;
-        updatePlatformBadge(myDevice, msg.receiver);
-        if (roomStatusLabel) roomStatusLabel.textContent = `Connected to ${msg.receiver.name || 'Receiver'} (${msg.receiver.tag || 'Web'})`;
+
         if (livePeerStatusText) {
-          livePeerStatusText.textContent = `⚡ ${myDevice.name} (${myDevice.platform}) ↔ ${msg.receiver.name} (${msg.receiver.platform})`;
+          const p2pCount = activePeersMap.size;
+          const mode = p2pCount > 0 ? 'Direct P2P' : 'Fast Relay';
+          livePeerStatusText.textContent = `${inScreenCount} in screen • ${totalCount} connected (${mode})`;
         }
-      }
 
-      const requiresPin = roomPinRequired && !!roomPinValue;
-      const filesMeta = selectedFiles.map(f => ({
-        id: f.id,
-        name: f.name,
-        size: f.size,
-        mimeType: f.mimeType
-      }));
-
-      sendPacket({
-        type: 'SENDER_ACK',
-        sender: myDevice,
-        requiresPin,
-        fileCount: selectedFiles.length,
-        totalBytes: selectedFiles.reduce((acc, f) => acc + f.size, 0),
-        files: requiresPin ? [] : filesMeta
-      });
-
-      if (!requiresPin) {
-        openLiveRoom(currentRoomCode, true);
-        if (selectedFiles.length > 0) {
-          sendLiveFiles(selectedFiles.map(f => f.rawFile || f));
+        const modalSummary = document.getElementById('participants-modal-summary');
+        if (modalSummary) {
+          modalSummary.textContent = `${inScreenCount} active in screen · ${totalCount} total connected`;
         }
-      }
-    } else if (msg.type === 'HANDSHAKE' || msg.type === 'SENDER_ACK') {
-      console.log('[LynqDrop] Received sender handshake/ACK:', msg);
-      if (msg.sender) {
-        remoteDevice = msg.sender;
-        updatePlatformBadge(myDevice, msg.sender);
-        if (livePeerStatusText) {
-          livePeerStatusText.textContent = `⚡ ${myDevice.name} (${myDevice.platform}) ↔ ${msg.sender.name} (${msg.sender.platform})`;
+        const modalLimit = document.getElementById('participants-modal-limit-info');
+        if (modalLimit) {
+          modalLimit.textContent = `Limit: ${roomMaxParticipants === 0 ? 'Unlimited' : roomMaxParticipants}`;
         }
+
+        renderParticipantsRosterList(allPeers);
       }
 
-      if (msg.requiresPin) {
-        if (receiveStatusBox) receiveStatusBox.style.display = 'none';
-        const platformCard = document.getElementById('platform-connection-card');
-        if (platformCard) platformCard.style.display = 'none';
-        if (pinChallengeCard) pinChallengeCard.style.display = 'block';
-        if (inputVerifyPin) inputVerifyPin.focus();
+      function renderParticipantsRosterList(allPeers) {
+        const container = document.getElementById('participants-list-container');
+        if (!container) return;
 
-        if (btnSubmitPin) {
-          btnSubmitPin.onclick = () => {
-            const entered = (inputVerifyPin?.value || '').trim();
-            if (!entered) return;
-            if (pinErrorText) pinErrorText.style.display = 'none';
-            sendPacket({ type: 'VERIFY_PIN', pin: entered });
-          };
+        if (!allPeers || allPeers.length === 0) {
+          container.innerHTML = '<div style="text-align: center; color: #8696a0; padding: 20px;">No participants found.</div>';
+          return;
         }
-      } else {
-        openLiveRoom(currentRoomCode, false);
-      }
-    } else if (msg.type === 'VERIFY_PIN') {
-      const inputPin = (msg.pin || '').trim();
-      if (inputPin === roomPinValue) {
-        console.log('[LynqDrop] Receiver PIN verified successfully');
-        sendPacket({ type: 'PIN_OK' });
-        openLiveRoom(currentRoomCode, true);
-        if (selectedFiles.length > 0) {
-          sendLiveFiles(selectedFiles.map(f => f.rawFile || f));
-        }
-      } else {
-        console.warn('[LynqDrop] Receiver provided incorrect PIN');
-        sendPacket({
-          type: 'PIN_ERROR',
-          message: 'Incorrect PIN. Please re-enter.'
-        });
-      }
-    } else if (msg.type === 'PIN_OK') {
-      if (pinChallengeCard) pinChallengeCard.style.display = 'none';
-      openLiveRoom(currentRoomCode, false);
-    } else if (msg.type === 'PIN_ERROR') {
-      if (pinErrorText) {
-        pinErrorText.style.display = 'block';
-        pinErrorText.textContent = msg.message || 'Incorrect PIN. Please try again.';
-      }
-    } else if (msg.type === 'CHAT_MSG') {
-      appendChatMessage({
-        sender: msg.senderAlias || (msg.isAdmin ? '👑 Admin' : (remoteDevice && remoteDevice.name) || (isSenderRole ? 'Receiver' : 'Sender')),
-        text: msg.text,
-        time: msg.time || Date.now(),
-        isMine: false
-      });
-      // Send delivery acknowledgment back so sender can show ✓✓
-      if (msg.msgId) {
-        sendPacket({ type: 'CHAT_ACK', msgId: msg.msgId, ackFrom: myClientId });
-      }
-      // Fan out if host received via WebRTC
-      if (isSenderRole && source === 'webrtc') {
-        fanOutToPeers(msg, msg.senderId);
-      }
-    } else if (msg.type === 'CHAT_ACK') {
-      // Upgrade sender's bubble from single ✓ to double ✓✓
-      if (msg.msgId) markMessageDelivered(msg.msgId);
-    } else if (msg.type === 'FILE_ACK') {
-      // Upgrade sender's file card from single ✓ to Double Blue Tick ✓✓
-      if (msg.transferId) markFileDelivered(msg.transferId, msg.name);
-    } else if (msg.type === 'FILE_START' || msg.type === 'CHUNK' || msg.type === 'FILE_END' || msg.type === 'ALL_COMPLETE') {
-      handleIncomingFileData(msg, msg.senderAlias || (remoteDevice && remoteDevice.name) || (isSenderRole ? 'Receiver' : 'Sender'));
-      if (isSenderRole && source === 'webrtc') {
-        fanOutToPeers(msg, msg.senderId);
-      }
-    } else if (msg.type === 'ROOM_TERMINATED' || msg.type === 'ROOM_CLOSED') {
-      showRoomEndedModal(msg.reason || 'The connected peer closed their browser tab. Room session terminated.');
-    } else if (msg.type === 'TEXT') {
-      alert(`Message from peer: ${msg.text}`);
-    } else if (msg.type === 'PING') {
-      sendPacket({ type: 'PONG' });
-    }
-  }
 
-  // =========================================================================
-  // 9. HIGH-AVAILABILITY P2P ENGINE & ROOM CONTROLLER
-  // =========================================================================
-  let activePeer = null;
-  let activeConnection = null;
-  const activePeersMap = new Map(); // key: peer.id or conn.peer, value: conn
-  let currentRoomCode = null;
-  let selectedFiles = [];
-  let isSenderRole = false;
-  let isRoomAdmin = false;
-  let roomMaxParticipants = 0; // 0 = unlimited
-  let transferInProgress = false;
+        let html = '';
+        allPeers.forEach(peer => {
+          const os = (peer.os || '').toLowerCase();
+          const icon = os.includes('win') ? '💻' : os.includes('mac') ? '🍏' : os.includes('android') ? '📱' : os.includes('ios') ? '📱' : '🌐';
+          const isSelf = (peer.id === myClientId);
+          const displayName = peer.alias;
 
-  // Active In-Screen Presence State & Logic
-  const myClientId = 'c_' + Math.random().toString(36).slice(2, 10);
-  const participantsRoster = new Map(); // key: clientId, value: { id, alias, os, isAdmin, isActive, lastSeen }
-  let presenceHeartbeatInterval = null;
-  let presencePruneInterval = null;
-
-  function isScreenActive() {
-    if (typeof document.hidden !== 'undefined' && document.hidden) return false;
-    if (typeof document.visibilityState !== 'undefined' && document.visibilityState !== 'visible') return false;
-    return document.hasFocus ? document.hasFocus() : true;
-  }
-
-  function broadcastPresence() {
-    if (!liveRoomOpen && !currentRoomCode) return;
-    const activeNow = isScreenActive();
-    // Record self in roster
-    participantsRoster.set(myClientId, {
-      id: myClientId,
-      alias: (myDevice.name || 'Device') + ' (You)',
-      os: myDevice.platform || 'web',
-      isAdmin: isRoomAdmin,
-      isActive: activeNow,
-      lastSeen: Date.now()
-    });
-
-    const packet = {
-      type: 'PRESENCE_HEARTBEAT',
-      senderId: myClientId,
-      alias: myDevice.name || 'Device',
-      os: myDevice.platform || 'web',
-      isAdmin: isRoomAdmin,
-      isActive: activeNow,
-      timestamp: Date.now()
-    };
-    sendPacket(packet, true);
-    renderPresenceUI();
-  }
-
-  function pruneAndRenderPresence() {
-    const now = Date.now();
-    for (const [id, peer] of participantsRoster.entries()) {
-      if (id !== myClientId && (now - peer.lastSeen) > 8000) {
-        participantsRoster.delete(id);
-      }
-    }
-    renderPresenceUI();
-  }
-
-  function renderPresenceUI() {
-    const allPeers = Array.from(participantsRoster.values());
-    const totalCount = Math.max(1, allPeers.length);
-    const inScreenCount = allPeers.filter(p => p.isActive).length;
-
-    const onlineBadge = document.getElementById('online-count-badge');
-    if (onlineBadge) {
-      if (totalCount === 1) {
-        onlineBadge.textContent = inScreenCount === 1 ? '1 in screen' : '0 in screen';
-      } else {
-        onlineBadge.textContent = `${inScreenCount} in screen · ${totalCount} connected`;
-      }
-    }
-
-    if (livePeerStatusText) {
-      const p2pCount = activePeersMap.size;
-      const mode = p2pCount > 0 ? 'Direct P2P' : 'Fast Relay';
-      livePeerStatusText.textContent = `${inScreenCount} in screen • ${totalCount} connected (${mode})`;
-    }
-
-    const modalSummary = document.getElementById('participants-modal-summary');
-    if (modalSummary) {
-      modalSummary.textContent = `${inScreenCount} active in screen · ${totalCount} total connected`;
-    }
-    const modalLimit = document.getElementById('participants-modal-limit-info');
-    if (modalLimit) {
-      modalLimit.textContent = `Limit: ${roomMaxParticipants === 0 ? 'Unlimited' : roomMaxParticipants}`;
-    }
-
-    renderParticipantsRosterList(allPeers);
-  }
-
-  function renderParticipantsRosterList(allPeers) {
-    const container = document.getElementById('participants-list-container');
-    if (!container) return;
-
-    if (!allPeers || allPeers.length === 0) {
-      container.innerHTML = '<div style="text-align: center; color: #8696a0; padding: 20px;">No participants found.</div>';
-      return;
-    }
-
-    let html = '';
-    allPeers.forEach(peer => {
-      const os = (peer.os || '').toLowerCase();
-      const icon = os.includes('win') ? '💻' : os.includes('mac') ? '🍏' : os.includes('android') ? '📱' : os.includes('ios') ? '📱' : '🌐';
-      const isSelf = (peer.id === myClientId);
-      const displayName = peer.alias;
-
-      html += `
+          html += `
         <div class="participant-item-card">
           <div class="participant-avatar">${icon}</div>
           <div class="participant-info">
@@ -2609,213 +2490,206 @@ document.addEventListener('DOMContentLoaded', () => {
           </div>
         </div>
       `;
-    });
-    container.innerHTML = html;
-  }
-
-  document.addEventListener('visibilitychange', () => {
-    broadcastPresence();
-  });
-  window.addEventListener('focus', () => {
-    broadcastPresence();
-  });
-  window.addEventListener('blur', () => {
-    broadcastPresence();
-  });
-
-  // Access Control State
-  let roomPinRequired = false;
-  let roomPinValue = '';
-  let roomScope = 'global';
-
-  // UI Element Handles
-  const dropzone = document.getElementById('web-dropzone');
-  const fileInput = document.getElementById('web-file-input');
-  const folderInput = document.getElementById('web-folder-input');
-  const selectedFilesCard = document.getElementById('selected-files-card');
-  const selectedFilesList = document.getElementById('selected-files-list');
-  const selectedFilesCount = document.getElementById('selected-files-count');
-  const selectedFilesTotalSize = document.getElementById('selected-files-total-size');
-  const btnClearSelectedFiles = document.getElementById('btn-clear-selected-files');
-
-  const toggleRequirePin = document.getElementById('toggle-require-pin');
-  const pinInputContainer = document.getElementById('pin-input-container');
-  const inputSenderPin = document.getElementById('input-sender-pin');
-  const selectRoomScope = document.getElementById('select-room-scope');
-
-  const sharingRoomCard = document.getElementById('sharing-room-card');
-  const roomCodeDisplay = document.getElementById('room-code-display');
-  const shareUrlField = document.getElementById('share-url-field');
-  const btnCopyCode = document.getElementById('btn-copy-code');
-  const btnCopyShareUrl = document.getElementById('btn-copy-share-url');
-  const roomStatusLabel = document.getElementById('room-status-label');
-
-  const inputJoinCode = document.getElementById('input-join-room-code');
-  const btnJoinRoom = document.getElementById('btn-join-room');
-  const receiveHeadingText = document.getElementById('receive-heading-text');
-  const receiveDescText = document.getElementById('receive-desc-text');
-  const roomInputContainer = document.getElementById('room-input-container');
-  const receiveStatusBox = document.getElementById('receive-status-box');
-  const receiveStatusText = document.getElementById('receive-status-text');
-
-  const pinChallengeCard = document.getElementById('pin-challenge-card');
-  const inputVerifyPin = document.getElementById('input-verify-pin');
-  const btnSubmitPin = document.getElementById('btn-submit-pin');
-  const pinErrorText = document.getElementById('pin-error-text');
-
-  const incomingAcceptCard = document.getElementById('incoming-accept-card');
-  const incomingSenderAlias = document.getElementById('incoming-sender-alias');
-  const incomingFilesSummary = document.getElementById('incoming-files-summary');
-  const btnAcceptTransfer = document.getElementById('btn-accept-transfer');
-  const btnRejectTransfer = document.getElementById('btn-reject-transfer');
-
-  const activeTransferCard = document.getElementById('active-transfer-card');
-  const monitorFileName = document.getElementById('monitor-file-name');
-  const monitorFileIndex = document.getElementById('monitor-file-index');
-  const monitorProgressBar = document.getElementById('monitor-progress-bar');
-  const monitorPercent = document.getElementById('monitor-percent');
-  const monitorSpeed = document.getElementById('monitor-speed');
-  const monitorBytes = document.getElementById('monitor-bytes');
-  const monitorEta = document.getElementById('monitor-eta');
-  const btnCancelTransfer = document.getElementById('btn-cancel-transfer');
-
-  const transferCompleteCard = document.getElementById('transfer-complete-card');
-  const completeSummary = document.getElementById('complete-summary');
-  const completedFilesList = document.getElementById('completed-files-list');
-  const btnResetComplete = document.getElementById('btn-reset-complete');
-
-  // Quick Text Handles
-  const quickTextInput = document.getElementById('quick-text-input');
-  const quickTextCharCount = document.getElementById('quick-text-char-count');
-  const btnClearQuickText = document.getElementById('btn-clear-quick-text');
-  const btnSendQuickText = document.getElementById('btn-send-quick-text');
-  const textToast = document.getElementById('text-toast');
-
-  // PIN & Scope Toggles
-  if (toggleRequirePin) {
-    toggleRequirePin.addEventListener('change', () => {
-      roomPinRequired = toggleRequirePin.checked;
-      if (pinInputContainer) {
-        pinInputContainer.style.display = roomPinRequired ? 'block' : 'none';
+        });
+        container.innerHTML = html;
       }
-      if (roomPinRequired && inputSenderPin && !inputSenderPin.value) {
-        // Auto-generate a clean 4-digit PIN
-        const randPin = Math.floor(1000 + Math.random() * 9000).toString();
-        inputSenderPin.value = randPin;
-        roomPinValue = randPin;
+
+      document.addEventListener('visibilitychange', () => {
+        broadcastPresence();
+      });
+      window.addEventListener('focus', () => {
+        broadcastPresence();
+      });
+      window.addEventListener('blur', () => {
+        broadcastPresence();
+      });
+
+      // Access Control State
+      let roomPinRequired = false;
+      let roomPinValue = '';
+      let roomScope = 'global';
+
+      // UI Element Handles
+      const dropzone = document.getElementById('web-dropzone');
+      const fileInput = document.getElementById('web-file-input');
+      const folderInput = document.getElementById('web-folder-input');
+      const selectedFilesCard = document.getElementById('selected-files-card');
+      const selectedFilesList = document.getElementById('selected-files-list');
+      const selectedFilesCount = document.getElementById('selected-files-count');
+      const selectedFilesTotalSize = document.getElementById('selected-files-total-size');
+      const btnClearSelectedFiles = document.getElementById('btn-clear-selected-files');
+
+      const toggleRequirePin = document.getElementById('toggle-require-pin');
+      const pinInputContainer = document.getElementById('pin-input-container');
+      const inputSenderPin = document.getElementById('input-sender-pin');
+      const selectRoomScope = document.getElementById('select-room-scope');
+
+      const sharingRoomCard = document.getElementById('sharing-room-card');
+      const roomCodeDisplay = document.getElementById('room-code-display');
+      const shareUrlField = document.getElementById('share-url-field');
+      const btnCopyCode = document.getElementById('btn-copy-code');
+      const btnCopyShareUrl = document.getElementById('btn-copy-share-url');
+      const roomStatusLabel = document.getElementById('room-status-label');
+
+      const inputJoinCode = document.getElementById('input-join-room-code');
+      const btnJoinRoom = document.getElementById('btn-join-room');
+      const receiveHeadingText = document.getElementById('receive-heading-text');
+      const receiveDescText = document.getElementById('receive-desc-text');
+      const roomInputContainer = document.getElementById('room-input-container');
+      const receiveStatusBox = document.getElementById('receive-status-box');
+      const receiveStatusText = document.getElementById('receive-status-text');
+
+      const pinChallengeCard = document.getElementById('pin-challenge-card');
+      const inputVerifyPin = document.getElementById('input-verify-pin');
+      const btnSubmitPin = document.getElementById('btn-submit-pin');
+      const pinErrorText = document.getElementById('pin-error-text');
+
+      const incomingAcceptCard = document.getElementById('incoming-accept-card');
+      const incomingSenderAlias = document.getElementById('incoming-sender-alias');
+      const incomingFilesSummary = document.getElementById('incoming-files-summary');
+      const btnAcceptTransfer = document.getElementById('btn-accept-transfer');
+      const btnRejectTransfer = document.getElementById('btn-reject-transfer');
+
+      const activeTransferCard = document.getElementById('active-transfer-card');
+      const monitorFileName = document.getElementById('monitor-file-name');
+      const monitorFileIndex = document.getElementById('monitor-file-index');
+      const monitorProgressBar = document.getElementById('monitor-progress-bar');
+      const monitorPercent = document.getElementById('monitor-percent');
+      const monitorSpeed = document.getElementById('monitor-speed');
+      const monitorBytes = document.getElementById('monitor-bytes');
+      const monitorEta = document.getElementById('monitor-eta');
+      const btnCancelTransfer = document.getElementById('btn-cancel-transfer');
+
+      const transferCompleteCard = document.getElementById('transfer-complete-card');
+      const completeSummary = document.getElementById('complete-summary');
+      const completedFilesList = document.getElementById('completed-files-list');
+      const btnResetComplete = document.getElementById('btn-reset-complete');
+
+      // Quick Text Handles
+      const quickTextInput = document.getElementById('quick-text-input');
+      const quickTextCharCount = document.getElementById('quick-text-char-count');
+      const btnClearQuickText = document.getElementById('btn-clear-quick-text');
+      const btnSendQuickText = document.getElementById('btn-send-quick-text');
+      const textToast = document.getElementById('text-toast');
+
+      // PIN & Scope Toggles
+      if (toggleRequirePin) {
+        toggleRequirePin.addEventListener('change', () => {
+          roomPinRequired = toggleRequirePin.checked;
+          if (pinInputContainer) {
+            pinInputContainer.style.display = roomPinRequired ? 'block' : 'none';
+          }
+          if (roomPinRequired && inputSenderPin && !inputSenderPin.value) {
+            // Auto-generate a clean 4-digit PIN
+            const randPin = Math.floor(1000 + Math.random() * 9000).toString();
+            inputSenderPin.value = randPin;
+            roomPinValue = randPin;
+          }
+        });
       }
-    });
-  }
 
-  if (inputSenderPin) {
-    inputSenderPin.addEventListener('input', () => {
-      roomPinValue = inputSenderPin.value.trim();
-    });
-  }
+      if (inputSenderPin) {
+        inputSenderPin.addEventListener('input', () => {
+          roomPinValue = inputSenderPin.value.trim();
+        });
+      }
 
-  if (selectRoomScope) {
-    selectRoomScope.addEventListener('change', () => {
-      roomScope = selectRoomScope.value;
-    });
-  }
+      if (selectRoomScope) {
+        selectRoomScope.addEventListener('change', () => {
+          roomScope = selectRoomScope.value;
+        });
+      }
 
-  // File Picker & Dropzone Events
-  if (dropzone) {
-    ['dragenter', 'dragover'].forEach(eventName => {
-      dropzone.addEventListener(eventName, (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        dropzone.classList.add('dragover');
-      }, false);
-    });
+      // File Picker & Dropzone Events
+      if (dropzone) {
+        ['dragenter', 'dragover'].forEach(eventName => {
+          dropzone.addEventListener(eventName, (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            dropzone.classList.add('dragover');
+          }, false);
+        });
 
-    ['dragleave', 'drop'].forEach(eventName => {
-      dropzone.addEventListener(eventName, (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        dropzone.classList.remove('dragover');
-      }, false);
-    });
+        ['dragleave', 'drop'].forEach(eventName => {
+          dropzone.addEventListener(eventName, (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            dropzone.classList.remove('dragover');
+          }, false);
+        });
 
-    dropzone.addEventListener('drop', async (e) => {
-      const dt = e.dataTransfer;
-      if (dt) {
-        const files = await extractDroppedFiles(dt);
-        if (files && files.length > 0) {
-          addFilesToQueue(files);
+        dropzone.addEventListener('drop', (e) => {
+          const dt = e.dataTransfer;
+          if (dt && dt.files && dt.files.length > 0) {
+            addFilesToQueue(Array.from(dt.files));
+          }
+        });
+      }
+
+      if (fileInput) {
+        fileInput.addEventListener('change', () => {
+          if (fileInput.files && fileInput.files.length > 0) {
+            addFilesToQueue(Array.from(fileInput.files));
+          }
+        });
+      }
+
+      if (folderInput) {
+        folderInput.addEventListener('change', () => {
+          if (folderInput.files && folderInput.files.length > 0) {
+            addFilesToQueue(Array.from(folderInput.files));
+          }
+        });
+      }
+
+      if (btnClearSelectedFiles) {
+        btnClearSelectedFiles.addEventListener('click', () => {
+          cleanupSenderRoom();
+        });
+      }
+
+      function addFilesToQueue(newFiles) {
+        selectedFiles = selectedFiles.concat(newFiles);
+        renderSelectedFiles();
+        initializeSenderRoom();
+
+        // If a receiver is already connected in this room, dispatch file details immediately
+        if (activeConnection && activeConnection.open) {
+          const requiresPin = roomPinRequired && !!roomPinValue;
+          const filesMeta = selectedFiles.map(f => ({
+            id: f.id,
+            name: f.name,
+            size: f.size,
+            mimeType: f.mimeType
+          }));
+          activeConnection.send({
+            type: 'FILES_ADDED',
+            files: requiresPin ? [] : filesMeta,
+            fileCount: selectedFiles.length,
+            totalBytes: selectedFiles.reduce((acc, f) => acc + f.size, 0)
+          });
         }
       }
-    });
-  }
 
-  if (fileInput) {
-    fileInput.addEventListener('change', () => {
-      if (fileInput.files && fileInput.files.length > 0) {
-        addFilesToQueue(Array.from(fileInput.files));
-      }
-    });
-  }
+      function renderSelectedFiles() {
+        if (selectedFiles.length === 0) {
+          if (selectedFilesCard) selectedFilesCard.style.display = 'none';
+          return;
+        }
 
-  if (folderInput) {
-    folderInput.addEventListener('change', async () => {
-      if (folderInput.files && folderInput.files.length > 0) {
-        const rawFiles = Array.from(folderInput.files);
-        const firstPath = rawFiles[0]?.webkitRelativePath;
-        const folderName = firstPath ? firstPath.split('/')[0] : 'Folder';
-        const zipped = await compressFolderToZip(rawFiles, folderName);
-        addFilesToQueue(zipped);
-      }
-    });
-  }
+        if (selectedFilesCard) selectedFilesCard.style.display = 'block';
+        if (selectedFilesCount) selectedFilesCount.textContent = selectedFiles.length;
 
-  if (btnClearSelectedFiles) {
-    btnClearSelectedFiles.addEventListener('click', () => {
-      cleanupSenderRoom();
-    });
-  }
+        let total = 0;
+        selectedFiles.forEach(f => total += f.size);
+        if (selectedFilesTotalSize) selectedFilesTotalSize.textContent = formatBytes(total);
 
-  function addFilesToQueue(newFiles) {
-    selectedFiles = selectedFiles.concat(newFiles);
-    renderSelectedFiles();
-    initializeSenderRoom();
-
-    // If a receiver is already connected in this room, dispatch file details immediately
-    if (activeConnection && activeConnection.open) {
-      const requiresPin = roomPinRequired && !!roomPinValue;
-      const filesMeta = selectedFiles.map(f => ({
-        id: f.id,
-        name: f.name,
-        size: f.size,
-        mimeType: f.mimeType
-      }));
-      activeConnection.send({
-        type: 'FILES_ADDED',
-        files: requiresPin ? [] : filesMeta,
-        fileCount: selectedFiles.length,
-        totalBytes: selectedFiles.reduce((acc, f) => acc + f.size, 0)
-      });
-    }
-  }
-
-  function renderSelectedFiles() {
-    if (selectedFiles.length === 0) {
-      if (selectedFilesCard) selectedFilesCard.style.display = 'none';
-      return;
-    }
-
-    if (selectedFilesCard) selectedFilesCard.style.display = 'block';
-    if (selectedFilesCount) selectedFilesCount.textContent = selectedFiles.length;
-
-    let total = 0;
-    selectedFiles.forEach(f => total += f.size);
-    if (selectedFilesTotalSize) selectedFilesTotalSize.textContent = formatBytes(total);
-
-    if (selectedFilesList) {
-      selectedFilesList.innerHTML = '';
-      selectedFiles.forEach((file, index) => {
-        const row = document.createElement('div');
-        row.className = 'file-item-row';
-        row.innerHTML = `
+        if (selectedFilesList) {
+          selectedFilesList.innerHTML = '';
+          selectedFiles.forEach((file, index) => {
+            const row = document.createElement('div');
+            row.className = 'file-item-row';
+            row.innerHTML = `
           <div class="file-item-info">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="color: var(--accent-cyan); flex-shrink: 0;"><path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><polyline points="13 2 13 9 20 9"/></svg>
             <div style="overflow: hidden;">
@@ -2827,939 +2701,968 @@ document.addEventListener('DOMContentLoaded', () => {
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
           </button>
         `;
-        selectedFilesList.appendChild(row);
-      });
+            selectedFilesList.appendChild(row);
+          });
 
-      selectedFilesList.querySelectorAll('.file-item-remove').forEach(btn => {
-        btn.addEventListener('click', () => {
-          const idx = parseInt(btn.getAttribute('data-index'), 10);
-          selectedFiles.splice(idx, 1);
-          renderSelectedFiles();
-          if (selectedFiles.length === 0) {
-            cleanupSenderRoom();
-          }
-        });
-      });
-    }
-  }
-
-  function cleanupSenderRoom() {
-    selectedFiles = [];
-    renderSelectedFiles();
-    if (sharingRoomCard) sharingRoomCard.style.display = 'none';
-    sendPacket({ type: 'ROOM_CLOSED' });
-    for (const [peerId, conn] of activePeersMap.entries()) {
-      try { conn.close(); } catch (_) {}
-    }
-    activePeersMap.clear();
-    if (activeConnection) {
-      try {
-        activeConnection.close();
-      } catch (_) { }
-      activeConnection = null;
-    }
-    if (activeRelay) {
-      try {
-        activeRelay.close();
-      } catch (_) { }
-      activeRelay = null;
-    }
-    if (activePeer) {
-      try { activePeer.destroy(); } catch (_) { }
-      activePeer = null;
-    }
-    currentRoomCode = null;
-  }
-
-  // Clean up WebRTC resources when page unloads (do not send premature ROOM_TERMINATED so refresh works)
-  window.addEventListener('beforeunload', () => {
-    if (activeConnection) {
-      try { activeConnection.close(); } catch (_) { }
-    }
-    if (activeRelay) {
-      try { activeRelay.close(); } catch (_) { }
-    }
-    if (activePeer) {
-      try { activePeer.destroy(); } catch (_) { }
-    }
-  });
-
-  window.addEventListener('pagehide', () => {
-    if (activeConnection) {
-      try { activeConnection.close(); } catch (_) { }
-    }
-    if (activeRelay) {
-      try { activeRelay.close(); } catch (_) { }
-    }
-    if (activePeer) {
-      try { activePeer.destroy(); } catch (_) { }
-    }
-  });
-
-  // =========================================================================
-  // 10. SENDER PEER & ROOM INITIALIZATION
-  // =========================================================================
-  function initializeSenderRoom(existingCode = null) {
-    if (activePeer && currentRoomCode && (!existingCode || currentRoomCode === existingCode)) {
-      if (sharingRoomCard) sharingRoomCard.style.display = 'block';
-      return;
-    }
-
-    currentRoomCode = existingCode || generateCrockfordCode();
-    isSenderRole = true;
-    try {
-      sessionStorage.setItem('ld_room_' + currentRoomCode, 'sender');
-      sessionStorage.setItem('ld_active_code', currentRoomCode);
-    } catch (_) {}
-    const peerId = roomCodeToPeerId(currentRoomCode);
-
-    if (roomCodeDisplay) roomCodeDisplay.textContent = currentRoomCode;
-    const shareUrl = `${window.location.origin}/?room=${encodeURIComponent(currentRoomCode)}`;
-    if (shareUrlField) shareUrlField.value = shareUrl;
-
-    if (sharingRoomCard) sharingRoomCard.style.display = 'block';
-    if (roomStatusLabel) roomStatusLabel.textContent = 'Room Active · Ready for Receiver';
-    renderQRCode(shareUrl, 'room-qr-holder');
-
-    // Initialize Firebase RTDB Relay — port 443 HTTPS, works on all carriers/networks
-    try {
-      if (activeRelay) {
-        try { activeRelay.close(); } catch (_) { }
-        activeRelay = null;
+          selectedFilesList.querySelectorAll('.file-item-remove').forEach(btn => {
+            btn.addEventListener('click', () => {
+              const idx = parseInt(btn.getAttribute('data-index'), 10);
+              selectedFiles.splice(idx, 1);
+              renderSelectedFiles();
+              if (selectedFiles.length === 0) {
+                cleanupSenderRoom();
+              }
+            });
+          });
+        }
       }
-      activeRelay = new BrowserRelay(currentRoomCode, 'sender', (msg) => {
-        handleIncomingPacket(msg, 'relay');
-      });
-      activeRelay.connect().then((ok) => {
-        console.log('[LynqDrop] Firebase relay connected as sender:', ok);
-        // Broadcast SENDER_ONLINE every 600ms until room opens (receiver may connect any time)
-        const senderAnnounceInterval = setInterval(() => {
-          if (liveRoomOpen) {
-            clearInterval(senderAnnounceInterval);
-            return;
-          }
-          if (activeRelay && activeRelay.connected) {
-            activeRelay.publish({
-              type: 'SENDER_ONLINE',
-              sender: myDevice,
-              code: currentRoomCode,
-              timestamp: Date.now()
-            });
-          }
-        }, 600);
-        setTimeout(() => clearInterval(senderAnnounceInterval), 20000);
-      });
-    } catch (e) {
-      console.warn('[LynqDrop] FirebaseRelay init error:', e);
-    }
 
-    try {
-      activePeer = new Peer(peerId, {
-        config: RTC_CONFIG,
-        debug: 1
-      });
-
-      activePeer.on('open', (id) => {
-        console.log('[LynqDrop] Sender Peer successfully active on signaling:', id);
-        if (roomStatusLabel) roomStatusLabel.textContent = 'Room Active · Ready for Receiver';
-        renderQRCode(shareUrl, 'room-qr-holder');
-      });
-
-      activePeer.on('connection', (conn) => {
-        console.log('[LynqDrop] Incoming receiver connected:', conn.peer);
-        // Check participant limit
-        if (roomMaxParticipants > 0 && activePeersMap.size >= roomMaxParticipants) {
-          console.warn(`[LynqDrop] Rejecting ${conn.peer}: Room limit of ${roomMaxParticipants} reached`);
+      function cleanupSenderRoom() {
+        selectedFiles = [];
+        renderSelectedFiles();
+        if (sharingRoomCard) sharingRoomCard.style.display = 'none';
+        sendPacket({ type: 'ROOM_CLOSED' });
+        for (const [peerId, conn] of activePeersMap.entries()) {
+          try { conn.close(); } catch (_) { }
+        }
+        activePeersMap.clear();
+        if (activeConnection) {
           try {
-            conn.send({
-              type: 'ROOM_FULL',
-              reason: `This room has reached its maximum participant limit of ${roomMaxParticipants} set by the admin.`
-            });
-            setTimeout(() => { try { conn.close(); } catch(_) {} }, 500);
-          } catch (_) {}
+            activeConnection.close();
+          } catch (_) { }
+          activeConnection = null;
+        }
+        if (activeRelay) {
+          try {
+            activeRelay.close();
+          } catch (_) { }
+          activeRelay = null;
+        }
+        if (activePeer) {
+          try { activePeer.destroy(); } catch (_) { }
+          activePeer = null;
+        }
+        currentRoomCode = null;
+      }
+
+      // Clean up WebRTC resources when page unloads (do not send premature ROOM_TERMINATED so refresh works)
+      window.addEventListener('beforeunload', () => {
+        if (activeConnection) {
+          try { activeConnection.close(); } catch (_) { }
+        }
+        if (activeRelay) {
+          try { activeRelay.close(); } catch (_) { }
+        }
+        if (activePeer) {
+          try { activePeer.destroy(); } catch (_) { }
+        }
+      });
+
+      window.addEventListener('pagehide', () => {
+        if (activeConnection) {
+          try { activeConnection.close(); } catch (_) { }
+        }
+        if (activeRelay) {
+          try { activeRelay.close(); } catch (_) { }
+        }
+        if (activePeer) {
+          try { activePeer.destroy(); } catch (_) { }
+        }
+      });
+
+      // =========================================================================
+      // 10. SENDER PEER & ROOM INITIALIZATION
+      // =========================================================================
+      function initializeSenderRoom(existingCode = null) {
+        if (activePeer && currentRoomCode && (!existingCode || currentRoomCode === existingCode)) {
+          if (sharingRoomCard) sharingRoomCard.style.display = 'block';
           return;
         }
+
+        currentRoomCode = existingCode || generateCrockfordCode();
+        isSenderRole = true;
+        try {
+          sessionStorage.setItem('ld_room_' + currentRoomCode, 'sender');
+          sessionStorage.setItem('ld_active_code', currentRoomCode);
+        } catch (_) { }
+        const peerId = roomCodeToPeerId(currentRoomCode);
+
+        if (roomCodeDisplay) roomCodeDisplay.textContent = currentRoomCode;
+        const shareUrl = `${window.location.origin}/?room=${encodeURIComponent(currentRoomCode)}`;
+        if (shareUrlField) shareUrlField.value = shareUrl;
+
+        if (sharingRoomCard) sharingRoomCard.style.display = 'block';
+        if (roomStatusLabel) roomStatusLabel.textContent = 'Room Active · Ready for Receiver';
+        renderQRCode(shareUrl, 'room-qr-holder');
+
+        // Initialize Firebase RTDB Relay — port 443 HTTPS, works on all carriers/networks
+        try {
+          if (activeRelay) {
+            try { activeRelay.close(); } catch (_) { }
+            activeRelay = null;
+          }
+          activeRelay = new BrowserRelay(currentRoomCode, 'sender', (msg) => {
+            handleIncomingPacket(msg, 'relay');
+          });
+          activeRelay.connect().then((ok) => {
+            console.log('[LynqDrop] Firebase relay connected as sender:', ok);
+            // Broadcast SENDER_ONLINE every 600ms until room opens (receiver may connect any time)
+            const senderAnnounceInterval = setInterval(() => {
+              if (liveRoomOpen) {
+                clearInterval(senderAnnounceInterval);
+                return;
+              }
+              if (activeRelay && activeRelay.connected) {
+                activeRelay.publish({
+                  type: 'SENDER_ONLINE',
+                  sender: myDevice,
+                  code: currentRoomCode,
+                  timestamp: Date.now()
+                });
+              }
+            }, 600);
+            setTimeout(() => clearInterval(senderAnnounceInterval), 20000);
+          });
+        } catch (e) {
+          console.warn('[LynqDrop] FirebaseRelay init error:', e);
+        }
+
+        try {
+          activePeer = new Peer(peerId, {
+            config: RTC_CONFIG,
+            debug: 1
+          });
+
+          activePeer.on('open', (id) => {
+            console.log('[LynqDrop] Sender Peer successfully active on signaling:', id);
+            if (roomStatusLabel) roomStatusLabel.textContent = 'Room Active · Ready for Receiver';
+            renderQRCode(shareUrl, 'room-qr-holder');
+          });
+
+          activePeer.on('connection', (conn) => {
+            console.log('[LynqDrop] Incoming receiver connected:', conn.peer);
+            // Check participant limit
+            if (roomMaxParticipants > 0 && activePeersMap.size >= roomMaxParticipants) {
+              console.warn(`[LynqDrop] Rejecting ${conn.peer}: Room limit of ${roomMaxParticipants} reached`);
+              try {
+                conn.send({
+                  type: 'ROOM_FULL',
+                  reason: `This room has reached its maximum participant limit of ${roomMaxParticipants} set by the admin.`
+                });
+                setTimeout(() => { try { conn.close(); } catch (_) { } }, 500);
+              } catch (_) { }
+              return;
+            }
+            activePeersMap.set(conn.peer, conn);
+            activeConnection = conn;
+            setupSenderConnection(conn);
+          });
+
+          activePeer.on('error', (err) => {
+            console.warn('[LynqDrop] Sender Peer error:', err);
+            if (err.type === 'unavailable-id') {
+              // If ID taken, regenerate code cleanly
+              cleanupSenderRoom();
+              setTimeout(() => initializeSenderRoom(), 300);
+            } else {
+              if (roomStatusLabel) roomStatusLabel.textContent = `P2P status: ${err.type || 'connecting'}`;
+            }
+          });
+        } catch (err) {
+          console.error('[LynqDrop] Failed to initialize sender Peer:', err);
+        }
+      }
+
+      function setupSenderConnection(conn) {
         activePeersMap.set(conn.peer, conn);
         activeConnection = conn;
-        setupSenderConnection(conn);
-      });
+        if (roomStatusLabel) roomStatusLabel.textContent = `Peers Connected (${activePeersMap.size}) · Handshaking...`;
 
-      activePeer.on('error', (err) => {
-        console.warn('[LynqDrop] Sender Peer error:', err);
-        if (err.type === 'unavailable-id') {
-          // If ID taken, regenerate code cleanly
-          cleanupSenderRoom();
-          setTimeout(() => initializeSenderRoom(), 300);
-        } else {
-          if (roomStatusLabel) roomStatusLabel.textContent = `P2P status: ${err.type || 'connecting'}`;
-        }
-      });
-    } catch (err) {
-      console.error('[LynqDrop] Failed to initialize sender Peer:', err);
-    }
-  }
+        // No false safety net — room only opens on real transport ready (relay HELLO or DataChannel open)
+        let senderOpenHandled = false;
+        function handleSenderOpen() {
+          if (senderOpenHandled) return;
+          senderOpenHandled = true;
+          activePeersMap.set(conn.peer, conn);
+          activeConnection = conn;
+          try { conn._open = true; } catch (_) { }
+          if (conn.dataChannel) {
+            try { conn.dataChannel.binaryType = 'arraybuffer'; } catch (_) { }
+          }
+          console.log('[LynqDrop] DataChannel OPEN with peer:', conn.peer);
+          if (roomStatusLabel) roomStatusLabel.textContent = `Direct P2P DataChannel Connected (${activePeersMap.size} peers)`;
 
-  function setupSenderConnection(conn) {
-    activePeersMap.set(conn.peer, conn);
-    activeConnection = conn;
-    if (roomStatusLabel) roomStatusLabel.textContent = `Peers Connected (${activePeersMap.size}) · Handshaking...`;
+          const requiresPin = roomPinRequired && !!roomPinValue;
 
-    // No false safety net — room only opens on real transport ready (relay HELLO or DataChannel open)
-    let senderOpenHandled = false;
-    function handleSenderOpen() {
-      if (senderOpenHandled) return;
-      senderOpenHandled = true;
-      activePeersMap.set(conn.peer, conn);
-      activeConnection = conn;
-      try { conn._open = true; } catch (_) {}
-      if (conn.dataChannel) {
-        try { conn.dataChannel.binaryType = 'arraybuffer'; } catch (_) {}
-      }
-      console.log('[LynqDrop] DataChannel OPEN with peer:', conn.peer);
-      if (roomStatusLabel) roomStatusLabel.textContent = `Direct P2P DataChannel Connected (${activePeersMap.size} peers)`;
+          // Send initial handshake with metadata
+          const filesMeta = selectedFiles.map(f => ({
+            id: f.id,
+            name: f.name,
+            size: f.size,
+            mimeType: f.mimeType
+          }));
 
-      const requiresPin = roomPinRequired && !!roomPinValue;
+          sendPacket({
+            type: 'HANDSHAKE',
+            sender: myDevice,
+            requiresPin,
+            fileCount: selectedFiles.length,
+            totalBytes: selectedFiles.reduce((acc, f) => acc + f.size, 0),
+            files: requiresPin ? [] : filesMeta
+          });
 
-      // Send initial handshake with metadata
-      const filesMeta = selectedFiles.map(f => ({
-        id: f.id,
-        name: f.name,
-        size: f.size,
-        mimeType: f.mimeType
-      }));
-
-      sendPacket({
-        type: 'HANDSHAKE',
-        sender: myDevice,
-        requiresPin,
-        fileCount: selectedFiles.length,
-        totalBytes: selectedFiles.reduce((acc, f) => acc + f.size, 0),
-        files: requiresPin ? [] : filesMeta
-      });
-
-      if (!requiresPin) {
-        openLiveRoom(currentRoomCode, true);
-        if (selectedFiles.length > 0) {
-          sendLiveFiles(selectedFiles.map(f => f.rawFile || f));
-        }
-      }
-    }
-
-    // 1. Immediate ready check
-    if (conn.open || (conn.dataChannel && conn.dataChannel.readyState === 'open')) {
-      handleSenderOpen();
-    }
-
-    // 2. PeerJS open event
-    conn.on('open', handleSenderOpen);
-
-    // 3. Direct DataChannel listener
-    if (conn.dataChannel) {
-      if (conn.dataChannel.readyState === 'open') {
-        handleSenderOpen();
-      } else {
-        conn.dataChannel.addEventListener('open', handleSenderOpen, { once: true });
-      }
-    }
-
-    // 4. Native RTCPeerConnection listeners
-    if (conn.peerConnection) {
-      conn.peerConnection.addEventListener('datachannel', (ev) => {
-        const dc = ev.channel;
-        if (dc) {
-          if (dc.readyState === 'open') handleSenderOpen();
-          else dc.addEventListener('open', handleSenderOpen, { once: true });
-        }
-      });
-      conn.peerConnection.addEventListener('iceconnectionstatechange', () => {
-        const state = conn.peerConnection.iceConnectionState;
-        console.log('[LynqDrop Sender] ICE state:', state);
-        if (state === 'connected' || state === 'completed') {
-          setTimeout(handleSenderOpen, 50);
-        } else if (state === 'failed' || state === 'disconnected') {
-          console.log('[LynqDrop Sender] Direct P2P disconnected or blocked by symmetric NAT, transitioning via Relay!');
-          if (!senderOpenHandled && !liveRoomOpen) {
-            handleSenderOpen();
+          if (!requiresPin) {
+            openLiveRoom(currentRoomCode, true);
+            if (selectedFiles.length > 0) {
+              sendLiveFiles(selectedFiles.map(f => f.rawFile || f));
+            }
           }
         }
-      });
-    }
 
-    // 5. Active poller to defeat missed asynchronous event triggers
-    const senderPoll = setInterval(() => {
-      if (senderOpenHandled) {
-        clearInterval(senderPoll);
-        return;
-      }
-      if (conn.open || (conn.dataChannel && conn.dataChannel.readyState === 'open')) {
-        clearInterval(senderPoll);
-        handleSenderOpen();
-      }
-    }, 150);
-    setTimeout(() => clearInterval(senderPoll), 8000);
+        // 1. Immediate ready check
+        if (conn.open || (conn.dataChannel && conn.dataChannel.readyState === 'open')) {
+          handleSenderOpen();
+        }
 
-    // 6. Fail-safe timeout: never leave user stuck on "Handshaking..." if WebRTC ICE is delayed
-    setTimeout(() => {
-      if (!senderOpenHandled && !liveRoomOpen) {
-        console.log('[LynqDrop] WebRTC ICE timeout (2.5s), auto-opening room via Relay!');
-        handleSenderOpen();
-      }
-    }, 2500);
+        // 2. PeerJS open event
+        conn.on('open', handleSenderOpen);
 
-    conn.on('data', async (data) => {
-      if (!data) return;
-      handleSenderOpen();
-      handleIncomingPacket(data, 'webrtc');
-      fanOutToPeers(data, conn.peer);
-    });
+        // 3. Direct DataChannel listener
+        if (conn.dataChannel) {
+          if (conn.dataChannel.readyState === 'open') {
+            handleSenderOpen();
+          } else {
+            conn.dataChannel.addEventListener('open', handleSenderOpen, { once: true });
+          }
+        }
 
-    conn.on('close', () => {
-      console.log('[LynqDrop] Peer connection closed:', conn.peer);
-      activePeersMap.delete(conn.peer);
-      participantsRoster.delete(conn.peer);
-      renderPresenceUI();
-      if (activePeersMap.size === 0) {
-        if (roomStatusLabel) roomStatusLabel.textContent = 'Room Active · Waiting for peers to join';
-      }
-    });
-  }
-
-  // Sender File Streaming with 64KB Chunking & Backpressure Flow Control
-  async function startStreamingFilesToReceiver(conn) {
-    transferInProgress = true;
-    if (activeTransferCard) activeTransferCard.style.display = 'block';
-
-    const dc = conn.dataChannel;
-    let totalBytes = 0;
-    selectedFiles.forEach(f => totalBytes += f.size);
-    let overallBytesSent = 0;
-    const startTime = Date.now();
-
-    for (let i = 0; i < selectedFiles.length; i++) {
-      if (!transferInProgress) break;
-      const file = selectedFiles[i];
-
-      if (monitorFileName) monitorFileName.textContent = file.name;
-      if (monitorFileIndex) monitorFileIndex.textContent = `File ${i + 1} of ${selectedFiles.length}`;
-
-      conn.send({
-        type: 'FILE_START',
-        fileIndex: i,
-        name: file.name,
-        size: file.size,
-        mimeType: file.mimeType || file.type || 'application/octet-stream'
-      });
-
-      const blobSource = file.rawFile || file;
-      let fileOffset = 0;
-      while (fileOffset < file.size && transferInProgress) {
-        if (dc && dc.bufferedAmount > HIGH_WATER_MARK) {
-          await new Promise((resolve) => {
-            const check = setInterval(() => {
-              if (!dc || dc.bufferedAmount < LOW_WATER_MARK) {
-                clearInterval(check);
-                resolve();
+        // 4. Native RTCPeerConnection listeners
+        if (conn.peerConnection) {
+          conn.peerConnection.addEventListener('datachannel', (ev) => {
+            const dc = ev.channel;
+            if (dc) {
+              if (dc.readyState === 'open') handleSenderOpen();
+              else dc.addEventListener('open', handleSenderOpen, { once: true });
+            }
+          });
+          conn.peerConnection.addEventListener('iceconnectionstatechange', () => {
+            const state = conn.peerConnection.iceConnectionState;
+            console.log('[LynqDrop Sender] ICE state:', state);
+            if (state === 'connected' || state === 'completed') {
+              setTimeout(handleSenderOpen, 50);
+            } else if (state === 'failed' || state === 'disconnected') {
+              console.log('[LynqDrop Sender] Direct P2P disconnected or blocked by symmetric NAT, transitioning via Relay!');
+              if (!senderOpenHandled && !liveRoomOpen) {
+                handleSenderOpen();
               }
-            }, 10);
+            }
           });
         }
 
-        const slice = blobSource.slice(fileOffset, fileOffset + CHUNK_SIZE);
-        const buffer = await slice.arrayBuffer();
-
-        conn.send({
-          type: 'CHUNK',
-          fileIndex: i,
-          chunk: buffer
-        });
-
-        fileOffset += buffer.byteLength;
-        overallBytesSent += buffer.byteLength;
-
-        const percent = totalBytes > 0 ? Math.min(100, Math.round((overallBytesSent / totalBytes) * 100)) : 0;
-        if (monitorProgressBar) monitorProgressBar.style.width = `${percent}%`;
-        if (monitorPercent) monitorPercent.textContent = `${percent}%`;
-        if (monitorBytes) monitorBytes.textContent = `${formatBytes(overallBytesSent)} / ${formatBytes(totalBytes)}`;
-
-        const elapsedSec = (Date.now() - startTime) / 1000;
-        if (elapsedSec > 0.5) {
-          const speedBytesPerSec = overallBytesSent / elapsedSec;
-          if (monitorSpeed) monitorSpeed.textContent = `${(speedBytesPerSec / (1024 * 1024)).toFixed(1)} MB/s`;
-
-          const remainingBytes = totalBytes - overallBytesSent;
-          const remainingSec = speedBytesPerSec > 0 ? Math.round(remainingBytes / speedBytesPerSec) : 0;
-          if (monitorEta) monitorEta.textContent = `ETA: ${remainingSec}s`;
-        }
-      }
-
-      const sha256 = await computeBlobOrFileSHA256(file.rawFile || file);
-      conn.send({
-        type: 'FILE_END',
-        fileIndex: i,
-        sha256
-      });
-    }
-
-    conn.send({ type: 'ALL_COMPLETE' });
-
-    if (activeTransferCard) activeTransferCard.style.display = 'none';
-    if (transferCompleteCard) transferCompleteCard.style.display = 'block';
-    if (completeSummary) completeSummary.textContent = `Sent ${selectedFiles.length} file(s) (${formatBytes(totalBytes)}) directly peer-to-peer!`;
-  }
-
-  // =========================================================================
-  // 11. RECEIVER PEER & AUTOMATIC ROOM JOIN (QR CODE COMPLIANT)
-  // =========================================================================
-  if (btnJoinRoom) {
-    btnJoinRoom.addEventListener('click', () => {
-      const rawCode = (inputJoinCode?.value || '').trim();
-      const code = normalizeRoomCode(rawCode);
-      if (!isValidRoomCode(code)) {
-        alert('Please enter a valid room code (e.g. LD-8492 or LD-7K9M2Q).');
-        if (inputJoinCode) inputJoinCode.focus();
-        return;
-      }
-      joinReceiveSession(code);
-    });
-  }
-
-  function joinReceiveSession(code, retryAttempt = 1) {
-    isSenderRole = false;
-    currentRoomCode = code;
-    const targetPeerId = roomCodeToPeerId(code);
-
-    if (receiveStatusBox) receiveStatusBox.style.display = 'inline-flex';
-    if (receiveStatusText) {
-      receiveStatusText.textContent = retryAttempt > 1
-        ? `Connecting to room ${code} (Attempt ${retryAttempt}/5)...`
-        : `Connecting to room ${code}...`;
-    }
-
-    // Initialize Firebase RTDB Relay — port 443 HTTPS, works on all carriers/networks
-    try {
-      if (activeRelay) {
-        try { activeRelay.close(); } catch (_) { }
-        activeRelay = null;
-      }
-      activeRelay = new BrowserRelay(code, 'receiver', (msg) => {
-        handleIncomingPacket(msg, 'relay');
-      });
-      activeRelay.connect().then((ok) => {
-        console.log('[LynqDrop Firebase Relay] Receiver connected, announcing HELLO...');
-        // Announce immediately
-        activeRelay.publish({
-          type: 'RECEIVER_HELLO',
-          receiver: myDevice,
-          timestamp: Date.now()
-        });
-
-        // Keep announcing until room opens (in case sender missed first broadcast)
-        const helloInterval = setInterval(() => {
-          if (liveRoomOpen || !activeRelay || !activeRelay.connected) {
-            clearInterval(helloInterval);
+        // 5. Active poller to defeat missed asynchronous event triggers
+        const senderPoll = setInterval(() => {
+          if (senderOpenHandled) {
+            clearInterval(senderPoll);
             return;
           }
-          activeRelay.publish({
-            type: 'RECEIVER_HELLO',
-            receiver: myDevice,
-            timestamp: Date.now()
-          });
-        }, 800);
-        setTimeout(() => clearInterval(helloInterval), 20000);
-      });
-    } catch (e) {
-      console.warn('[LynqDrop] FirebaseRelay init error:', e);
-    }
+          if (conn.open || (conn.dataChannel && conn.dataChannel.readyState === 'open')) {
+            clearInterval(senderPoll);
+            handleSenderOpen();
+          }
+        }, 150);
+        setTimeout(() => clearInterval(senderPoll), 8000);
 
-    try {
-      // Instant Client ID prevents extra HTTP roundtrip to PeerJS broker
-      const clientId = 'ld-client-' + Math.random().toString(36).slice(2, 10);
-      const clientPeer = new Peer(clientId, {
-        config: RTC_CONFIG,
-        debug: 1
-      });
+        // 6. Fail-safe timeout: never leave user stuck on "Handshaking..." if WebRTC ICE is delayed
+        setTimeout(() => {
+          if (!senderOpenHandled && !liveRoomOpen) {
+            console.log('[LynqDrop] WebRTC ICE timeout (2.5s), auto-opening room via Relay!');
+            handleSenderOpen();
+          }
+        }, 2500);
 
-      clientPeer.on('open', (myId) => {
-        console.log('[LynqDrop Receiver] Client peer opened:', myId, 'Connecting to target:', targetPeerId);
-        const conn = clientPeer.connect(targetPeerId, {
-          reliable: true
+        conn.on('data', async (data) => {
+          if (!data) return;
+          handleSenderOpen();
+          handleIncomingPacket(data, 'webrtc');
+          fanOutToPeers(data, conn.peer);
         });
 
-        activeConnection = conn;
-        setupReceiverConnection(conn, code, retryAttempt, clientPeer);
-      });
+        conn.on('close', () => {
+          console.log('[LynqDrop] Peer connection closed:', conn.peer);
+          activePeersMap.delete(conn.peer);
+          participantsRoster.delete(conn.peer);
+          renderPresenceUI();
+          if (activePeersMap.size === 0) {
+            if (roomStatusLabel) roomStatusLabel.textContent = 'Room Active · Waiting for peers to join';
+          }
+        });
+      }
 
-      clientPeer.on('error', (err) => {
-        console.warn('[LynqDrop Receiver] Peer error:', err);
-        if (err.type === 'peer-unavailable' && retryAttempt < 5) {
-          setTimeout(() => {
-            try { clientPeer.destroy(); } catch (_) { }
-            joinReceiveSession(code, retryAttempt + 1);
-          }, 800);
-        } else {
-          if (receiveStatusText) {
-            receiveStatusText.textContent = err.type === 'peer-unavailable'
-              ? `Room ${code} not found or sender is offline. Ensure sender is active.`
-              : `Connection error: ${err.type || 'disconnected'}`;
+      // Sender File Streaming with 64KB Chunking & Backpressure Flow Control
+      async function startStreamingFilesToReceiver(conn) {
+        transferInProgress = true;
+        if (activeTransferCard) activeTransferCard.style.display = 'block';
+
+        const dc = conn.dataChannel;
+        let totalBytes = 0;
+        selectedFiles.forEach(f => totalBytes += f.size);
+        let overallBytesSent = 0;
+        const startTime = Date.now();
+
+        for (let i = 0; i < selectedFiles.length; i++) {
+          if (!transferInProgress) break;
+          const file = selectedFiles[i];
+
+          if (monitorFileName) monitorFileName.textContent = file.name;
+          if (monitorFileIndex) monitorFileIndex.textContent = `File ${i + 1} of ${selectedFiles.length}`;
+
+          conn.send({
+            type: 'FILE_START',
+            fileIndex: i,
+            name: file.name,
+            size: file.size,
+            mimeType: file.mimeType || file.type || 'application/octet-stream'
+          });
+
+          const blobSource = file.rawFile || file;
+          let fileOffset = 0;
+          while (fileOffset < file.size && transferInProgress) {
+            if (dc && dc.bufferedAmount > HIGH_WATER_MARK) {
+              await new Promise((resolve) => {
+                const check = setInterval(() => {
+                  if (!dc || dc.bufferedAmount < LOW_WATER_MARK) {
+                    clearInterval(check);
+                    resolve();
+                  }
+                }, 10);
+              });
+            }
+
+            const slice = blobSource.slice(fileOffset, fileOffset + CHUNK_SIZE);
+            const buffer = await slice.arrayBuffer();
+
+            conn.send({
+              type: 'CHUNK',
+              fileIndex: i,
+              chunk: buffer
+            });
+
+            fileOffset += buffer.byteLength;
+            overallBytesSent += buffer.byteLength;
+
+            const percent = totalBytes > 0 ? Math.min(100, Math.round((overallBytesSent / totalBytes) * 100)) : 0;
+            if (monitorProgressBar) monitorProgressBar.style.width = `${percent}%`;
+            if (monitorPercent) monitorPercent.textContent = `${percent}%`;
+            if (monitorBytes) monitorBytes.textContent = `${formatBytes(overallBytesSent)} / ${formatBytes(totalBytes)}`;
+
+            const elapsedSec = (Date.now() - startTime) / 1000;
+            if (elapsedSec > 0.5) {
+              const speedBytesPerSec = overallBytesSent / elapsedSec;
+              if (monitorSpeed) monitorSpeed.textContent = `${(speedBytesPerSec / (1024 * 1024)).toFixed(1)} MB/s`;
+
+              const remainingBytes = totalBytes - overallBytesSent;
+              const remainingSec = speedBytesPerSec > 0 ? Math.round(remainingBytes / speedBytesPerSec) : 0;
+              if (monitorEta) monitorEta.textContent = `ETA: ${remainingSec}s`;
+            }
+          }
+
+          const sha256 = await computeBlobOrFileSHA256(file.rawFile || file);
+          conn.send({
+            type: 'FILE_END',
+            fileIndex: i,
+            sha256
+          });
+        }
+
+        conn.send({ type: 'ALL_COMPLETE' });
+
+        if (activeTransferCard) activeTransferCard.style.display = 'none';
+        if (transferCompleteCard) transferCompleteCard.style.display = 'block';
+        if (completeSummary) completeSummary.textContent = `Sent ${selectedFiles.length} file(s) (${formatBytes(totalBytes)}) directly peer-to-peer!`;
+      }
+
+      // =========================================================================
+      // 11. RECEIVER PEER & AUTOMATIC ROOM JOIN (QR CODE COMPLIANT)
+      // =========================================================================
+      if (btnJoinRoom) {
+        btnJoinRoom.addEventListener('click', () => {
+          const rawCode = (inputJoinCode?.value || '').trim();
+          const code = normalizeRoomCode(rawCode);
+          if (!isValidRoomCode(code)) {
+            alert('Please enter a valid room code (e.g. LD-8492 or LD-7K9M2Q).');
+            if (inputJoinCode) inputJoinCode.focus();
+            return;
+          }
+          joinReceiveSession(code);
+        });
+      }
+
+      function joinReceiveSession(code, retryAttempt = 1) {
+        isSenderRole = false;
+        currentRoomCode = code;
+        const targetPeerId = roomCodeToPeerId(code);
+
+        if (receiveStatusBox) receiveStatusBox.style.display = 'inline-flex';
+        if (receiveStatusText) {
+          receiveStatusText.textContent = retryAttempt > 1
+            ? `Connecting to room ${code} (Attempt ${retryAttempt}/5)...`
+            : `Connecting to room ${code}...`;
+        }
+
+        // Initialize Firebase RTDB Relay — port 443 HTTPS, works on all carriers/networks
+        try {
+          if (activeRelay) {
+            try { activeRelay.close(); } catch (_) { }
+            activeRelay = null;
+          }
+          activeRelay = new BrowserRelay(code, 'receiver', (msg) => {
+            handleIncomingPacket(msg, 'relay');
+          });
+          activeRelay.connect().then((ok) => {
+            console.log('[LynqDrop Firebase Relay] Receiver connected, announcing HELLO...');
+            // Announce immediately
+            activeRelay.publish({
+              type: 'RECEIVER_HELLO',
+              receiver: myDevice,
+              timestamp: Date.now()
+            });
+
+            // Keep announcing until room opens (in case sender missed first broadcast)
+            const helloInterval = setInterval(() => {
+              if (liveRoomOpen || !activeRelay || !activeRelay.connected) {
+                clearInterval(helloInterval);
+                return;
+              }
+              activeRelay.publish({
+                type: 'RECEIVER_HELLO',
+                receiver: myDevice,
+                timestamp: Date.now()
+              });
+            }, 800);
+            setTimeout(() => clearInterval(helloInterval), 20000);
+          });
+        } catch (e) {
+          console.warn('[LynqDrop] FirebaseRelay init error:', e);
+        }
+
+        try {
+          // Instant Client ID prevents extra HTTP roundtrip to PeerJS broker
+          const clientId = 'ld-client-' + Math.random().toString(36).slice(2, 10);
+          const clientPeer = new Peer(clientId, {
+            config: RTC_CONFIG,
+            debug: 1
+          });
+
+          clientPeer.on('open', (myId) => {
+            console.log('[LynqDrop Receiver] Client peer opened:', myId, 'Connecting to target:', targetPeerId);
+            const conn = clientPeer.connect(targetPeerId, {
+              reliable: true
+            });
+
+            activeConnection = conn;
+            setupReceiverConnection(conn, code, retryAttempt, clientPeer);
+          });
+
+          clientPeer.on('error', (err) => {
+            console.warn('[LynqDrop Receiver] Peer error:', err);
+            if (err.type === 'peer-unavailable' && retryAttempt < 5) {
+              setTimeout(() => {
+                try { clientPeer.destroy(); } catch (_) { }
+                joinReceiveSession(code, retryAttempt + 1);
+              }, 800);
+            } else {
+              if (receiveStatusText) {
+                receiveStatusText.textContent = err.type === 'peer-unavailable'
+                  ? `Room ${code} not found or sender is offline. Ensure sender is active.`
+                  : `Connection error: ${err.type || 'disconnected'}`;
+              }
+            }
+          });
+        } catch (err) {
+          console.error('[LynqDrop Receiver] Failed to start receiver:', err);
+        }
+      }
+
+      function setupReceiverConnection(conn, roomCode, retryAttempt, clientPeer) {
+        let incomingFilesMeta = [];
+
+        // No false safety net — room only opens on real transport ready (relay HELLO or DataChannel open)
+        let currentSink = null;
+        let completedFiles = [];
+        let totalBytesExpected = 0;
+        let overallBytesReceived = 0;
+        let transferStartTime = Date.now();
+
+        let receiverOpenHandled = false;
+        function handleReceiverOpen() {
+          if (receiverOpenHandled) return;
+          receiverOpenHandled = true;
+          activePeersMap.set(conn.peer, conn);
+          activeConnection = conn;
+          try { conn._open = true; } catch (_) { }
+          if (conn.dataChannel) {
+            try { conn.dataChannel.binaryType = 'arraybuffer'; } catch (_) { }
+          }
+          console.log('[LynqDrop Receiver] DataChannel OPEN with sender');
+          if (receiveStatusBox) receiveStatusBox.style.display = 'inline-flex';
+          if (receiveStatusText) receiveStatusText.textContent = 'Connected! Entering room...';
+          if (roomInputContainer) roomInputContainer.style.display = 'none';
+          if (receiveHeadingText) receiveHeadingText.textContent = `Connected to Room ${roomCode}`;
+
+          // Notify sender of receiver device & platform details
+          sendPacket({
+            type: 'RECEIVER_HELLO',
+            receiver: myDevice
+          });
+
+          // Seamless instant transition to live room if not PIN-gated
+          if (!roomPinRequired) {
+            openLiveRoom(currentRoomCode, false);
           }
         }
-      });
-    } catch (err) {
-      console.error('[LynqDrop Receiver] Failed to start receiver:', err);
-    }
-  }
 
-  function setupReceiverConnection(conn, roomCode, retryAttempt, clientPeer) {
-    let incomingFilesMeta = [];
-
-    // No false safety net — room only opens on real transport ready (relay HELLO or DataChannel open)
-    let currentSink = null;
-    let completedFiles = [];
-    let totalBytesExpected = 0;
-    let overallBytesReceived = 0;
-    let transferStartTime = Date.now();
-
-    let receiverOpenHandled = false;
-    function handleReceiverOpen() {
-      if (receiverOpenHandled) return;
-      receiverOpenHandled = true;
-      activePeersMap.set(conn.peer, conn);
-      activeConnection = conn;
-      try { conn._open = true; } catch (_) {}
-      if (conn.dataChannel) {
-        try { conn.dataChannel.binaryType = 'arraybuffer'; } catch (_) {}
-      }
-      console.log('[LynqDrop Receiver] DataChannel OPEN with sender');
-      if (receiveStatusBox) receiveStatusBox.style.display = 'inline-flex';
-      if (receiveStatusText) receiveStatusText.textContent = 'Connected! Entering room...';
-      if (roomInputContainer) roomInputContainer.style.display = 'none';
-      if (receiveHeadingText) receiveHeadingText.textContent = `Connected to Room ${roomCode}`;
-
-      // Notify sender of receiver device & platform details
-      sendPacket({
-        type: 'RECEIVER_HELLO',
-        receiver: myDevice
-      });
-
-      // Seamless instant transition to live room if not PIN-gated
-      if (!roomPinRequired) {
-        openLiveRoom(currentRoomCode, false);
-      }
-    }
-
-    // 1. Immediate ready check
-    if (conn.open || (conn.dataChannel && conn.dataChannel.readyState === 'open')) {
-      handleReceiverOpen();
-    }
-
-    // 2. PeerJS open event
-    conn.on('open', handleReceiverOpen);
-
-    // 3. Direct DataChannel listener
-    if (conn.dataChannel) {
-      if (conn.dataChannel.readyState === 'open') {
-        handleReceiverOpen();
-      } else {
-        conn.dataChannel.addEventListener('open', handleReceiverOpen, { once: true });
-      }
-    }
-
-    // 4. Native RTCPeerConnection listeners
-    if (conn.peerConnection) {
-      conn.peerConnection.addEventListener('datachannel', (ev) => {
-        const dc = ev.channel;
-        if (dc) {
-          if (dc.readyState === 'open') handleReceiverOpen();
-          else dc.addEventListener('open', handleReceiverOpen, { once: true });
+        // 1. Immediate ready check
+        if (conn.open || (conn.dataChannel && conn.dataChannel.readyState === 'open')) {
+          handleReceiverOpen();
         }
-      });
-      conn.peerConnection.addEventListener('iceconnectionstatechange', () => {
-        const state = conn.peerConnection.iceConnectionState;
-        console.log('[LynqDrop Receiver] ICE state:', state);
-        if (state === 'connected' || state === 'completed') {
-          setTimeout(handleReceiverOpen, 50);
-        } else if (state === 'failed' || state === 'disconnected') {
-          console.log('[LynqDrop Receiver] Direct P2P disconnected or blocked by symmetric NAT, transitioning via Relay!');
-          if (!receiverOpenHandled && !liveRoomOpen) {
+
+        // 2. PeerJS open event
+        conn.on('open', handleReceiverOpen);
+
+        // 3. Direct DataChannel listener
+        if (conn.dataChannel) {
+          if (conn.dataChannel.readyState === 'open') {
+            handleReceiverOpen();
+          } else {
+            conn.dataChannel.addEventListener('open', handleReceiverOpen, { once: true });
+          }
+        }
+
+        // 4. Native RTCPeerConnection listeners
+        if (conn.peerConnection) {
+          conn.peerConnection.addEventListener('datachannel', (ev) => {
+            const dc = ev.channel;
+            if (dc) {
+              if (dc.readyState === 'open') handleReceiverOpen();
+              else dc.addEventListener('open', handleReceiverOpen, { once: true });
+            }
+          });
+          conn.peerConnection.addEventListener('iceconnectionstatechange', () => {
+            const state = conn.peerConnection.iceConnectionState;
+            console.log('[LynqDrop Receiver] ICE state:', state);
+            if (state === 'connected' || state === 'completed') {
+              setTimeout(handleReceiverOpen, 50);
+            } else if (state === 'failed' || state === 'disconnected') {
+              console.log('[LynqDrop Receiver] Direct P2P disconnected or blocked by symmetric NAT, transitioning via Relay!');
+              if (!receiverOpenHandled && !liveRoomOpen) {
+                handleReceiverOpen();
+              }
+            }
+          });
+        }
+
+        // 5. Active poller to catch missed events
+        const recvPoll = setInterval(() => {
+          if (receiverOpenHandled) {
+            clearInterval(recvPoll);
+            return;
+          }
+          if (conn.open || (conn.dataChannel && conn.dataChannel.readyState === 'open')) {
+            clearInterval(recvPoll);
             handleReceiverOpen();
           }
-        }
-      });
-    }
+        }, 150);
+        setTimeout(() => clearInterval(recvPoll), 8000);
 
-    // 5. Active poller to catch missed events
-    const recvPoll = setInterval(() => {
-      if (receiverOpenHandled) {
-        clearInterval(recvPoll);
-        return;
-      }
-      if (conn.open || (conn.dataChannel && conn.dataChannel.readyState === 'open')) {
-        clearInterval(recvPoll);
-        handleReceiverOpen();
-      }
-    }, 150);
-    setTimeout(() => clearInterval(recvPoll), 8000);
+        // 6. Fail-safe timeout: never leave receiver waiting if WebRTC ICE is delayed
+        setTimeout(() => {
+          if (!receiverOpenHandled && !liveRoomOpen) {
+            console.log('[LynqDrop Receiver] WebRTC ICE timeout (2.5s), auto-opening room via Relay!');
+            handleReceiverOpen();
+          }
+        }, 2500);
 
-    // 6. Fail-safe timeout: never leave receiver waiting if WebRTC ICE is delayed
-    setTimeout(() => {
-      if (!receiverOpenHandled && !liveRoomOpen) {
-        console.log('[LynqDrop Receiver] WebRTC ICE timeout (2.5s), auto-opening room via Relay!');
-        handleReceiverOpen();
-      }
-    }, 2500);
+        conn.on('data', async (msg) => {
+          if (!msg) return;
+          handleReceiverOpen();
+          handleIncomingPacket(msg, 'webrtc');
+        });
 
-    conn.on('data', async (msg) => {
-      if (!msg) return;
-      handleReceiverOpen();
-      handleIncomingPacket(msg, 'webrtc');
-    });
+        conn.on('close', () => {
+          console.log('[LynqDrop Receiver] Connection closed by host');
+          activePeersMap.delete(conn.peer);
+          participantsRoster.delete(conn.peer);
+          renderPresenceUI();
+          showRoomEndedModal('The host closed their browser tab or disconnected. Session ended.');
+        });
 
-    conn.on('close', () => {
-      console.log('[LynqDrop Receiver] Connection closed by host');
-      activePeersMap.delete(conn.peer);
-      participantsRoster.delete(conn.peer);
-      renderPresenceUI();
-      showRoomEndedModal('The host closed their browser tab or disconnected. Session ended.');
-    });
+        function displayIncomingApproval(files, totalBytes) {
+          incomingFilesMeta = files || [];
+          totalBytesExpected = totalBytes || incomingFilesMeta.reduce((acc, f) => acc + f.size, 0);
 
-    function displayIncomingApproval(files, totalBytes) {
-      incomingFilesMeta = files || [];
-      totalBytesExpected = totalBytes || incomingFilesMeta.reduce((acc, f) => acc + f.size, 0);
+          if (incomingFilesSummary) {
+            incomingFilesSummary.innerHTML = `<strong>${incomingFilesMeta.length} file(s)</strong> (${formatBytes(totalBytesExpected)}) ready to download.`;
+          }
+          if (incomingAcceptCard) incomingAcceptCard.style.display = 'block';
+          if (receiveStatusBox) receiveStatusBox.style.display = 'none';
+          const platformCard = document.getElementById('platform-connection-card');
+          if (platformCard) platformCard.style.display = 'none';
 
-      if (incomingFilesSummary) {
-        incomingFilesSummary.innerHTML = `<strong>${incomingFilesMeta.length} file(s)</strong> (${formatBytes(totalBytesExpected)}) ready to download.`;
-      }
-      if (incomingAcceptCard) incomingAcceptCard.style.display = 'block';
-      if (receiveStatusBox) receiveStatusBox.style.display = 'none';
-      const platformCard = document.getElementById('platform-connection-card');
-      if (platformCard) platformCard.style.display = 'none';
-
-      if (btnAcceptTransfer) {
-        btnAcceptTransfer.onclick = () => {
-          if (incomingAcceptCard) incomingAcceptCard.style.display = 'none';
-          if (activeTransferCard) activeTransferCard.style.display = 'block';
-          transferStartTime = Date.now();
-          conn.send({ type: 'ACCEPT' });
-        };
-      }
-
-      if (btnRejectTransfer) {
-        btnRejectTransfer.onclick = () => {
-          if (incomingAcceptCard) incomingAcceptCard.style.display = 'none';
-          conn.send({ type: 'DECLINE' });
-          resetReceiverState();
-        };
-      }
-    }
-
-    function resetReceiverState() {
-      if (roomInputContainer) roomInputContainer.style.display = 'flex';
-      if (receiveStatusBox) receiveStatusBox.style.display = 'none';
-      const platformCard = document.getElementById('platform-connection-card');
-      if (platformCard) platformCard.style.display = 'none';
-      if (incomingAcceptCard) incomingAcceptCard.style.display = 'none';
-      if (activeTransferCard) activeTransferCard.style.display = 'none';
-    }
-  }
-
-  // =========================================================================
-  // 12. AUTOMATIC QR CODE URL DETECTOR (?room=LD-XXXXXX) & DEEP LINKING
-  // =========================================================================
-  function setupNativeAppBanner(roomCode) {
-    const banner = document.getElementById('mobile-app-banner');
-    const btnOpen = document.getElementById('btn-open-in-app');
-    if (!banner || !btnOpen) return;
-
-    const ua = navigator.userAgent;
-    const isAndroid = /android/i.test(ua);
-    const isMobile = /android|iphone|ipad|ipod/i.test(ua);
-
-    if (isMobile) {
-      banner.style.display = 'flex';
-      if (isAndroid) {
-        // Deep linking / intent URL for installed LynqDrop Android app
-        const intentUrl = `intent://lynqdrop.web.app/?room=${roomCode}#Intent;scheme=lynqdrop;package=app.lynqdrop;end`;
-        btnOpen.href = intentUrl;
-        btnOpen.textContent = 'Open in App';
-      } else {
-        btnOpen.href = '#download';
-        btnOpen.textContent = 'Get App';
-      }
-    }
-  }
-
-  function checkUrlForAutoJoin() {
-    try {
-      let codeToJoin = null;
-      const params = new URLSearchParams(window.location.search);
-      const qRoom = params.get('room');
-      if (qRoom) codeToJoin = normalizeRoomCode(qRoom);
-
-      if (!codeToJoin && window.location.hash) {
-        const match = window.location.hash.match(/room=([A-Za-z0-9\-]+)/);
-        if (match && match[1]) codeToJoin = normalizeRoomCode(match[1]);
-      }
-
-      if (codeToJoin && isValidRoomCode(codeToJoin)) {
-        console.log('[LynqDrop] Auto-joining room:', codeToJoin);
-        const savedRole = sessionStorage.getItem('ld_room_' + codeToJoin);
-        if (savedRole === 'sender') {
-          console.log('[LynqDrop] Restoring sender session for room:', codeToJoin);
-          initializeSenderRoom(codeToJoin);
-        } else {
-          // Hide hero banner on phone to give full focus to incoming transfer
-          document.body.classList.add('qr-joined');
-          document.body.classList.add('mobile-app-mode');
-
-          // Switch to Receive subview immediately
-          window.switchBrowserShareSubView('receive');
-
-          if (inputJoinCode) inputJoinCode.value = codeToJoin;
-          if (roomInputContainer) roomInputContainer.style.display = 'none';
-          if (receiveStatusBox) receiveStatusBox.style.display = 'inline-flex';
-          if (receiveHeadingText) receiveHeadingText.textContent = `Connecting to ${codeToJoin}...`;
-          if (receiveDescText) receiveDescText.textContent = 'Joining room & launching live chat...';
-
-          // Setup native Android app deep link banner
-          setupNativeAppBanner(codeToJoin);
-
-          // Auto-scroll directly to the sharing hub
-          const hub = document.getElementById('sharing-hub');
-          if (hub) {
-            hub.scrollIntoView({ behavior: 'smooth', block: 'start' });
+          if (btnAcceptTransfer) {
+            btnAcceptTransfer.onclick = () => {
+              if (incomingAcceptCard) incomingAcceptCard.style.display = 'none';
+              if (activeTransferCard) activeTransferCard.style.display = 'block';
+              transferStartTime = Date.now();
+              conn.send({ type: 'ACCEPT' });
+            };
           }
 
-          // Automatically initiate connection immediately (NO manual click needed)
-          joinReceiveSession(codeToJoin);
+          if (btnRejectTransfer) {
+            btnRejectTransfer.onclick = () => {
+              if (incomingAcceptCard) incomingAcceptCard.style.display = 'none';
+              conn.send({ type: 'DECLINE' });
+              resetReceiverState();
+            };
+          }
         }
-      } else {
-        // No room in URL -> sender mode on PC/web -> create sender room immediately
-        initializeSenderRoom();
-      }
-    } catch (_) { }
-  }
-  checkUrlForAutoJoin();
 
-  // Expose LynqDrop API on window for automated verification & programmatic usage
-  window.lynqdrop = {
-    createSenderRoom: initializeSenderRoom,
-    joinReceiveSession: joinReceiveSession,
-    getRoomCode: () => currentRoomCode,
-    getActivePeer: () => activePeer,
-    getActiveConnection: () => activeConnection,
-    getSelectedFiles: () => selectedFiles,
-    getMyDevice: () => myDevice,
-    addFiles: addFilesToQueue,
-    openLiveRoom: openLiveRoom,
-    sendLiveChatMessage: sendLiveChatMessage,
-    sendLiveFiles: sendLiveFiles,
-    showRoomEndedModal: showRoomEndedModal
-  };
-
-  // =========================================================================
-  // 13. QUICK TEXT & CLIPBOARD
-  // =========================================================================
-  if (quickTextInput && quickTextCharCount) {
-    quickTextInput.addEventListener('input', () => {
-      quickTextCharCount.textContent = `${quickTextInput.value.length} characters`;
-    });
-  }
-
-  if (btnClearQuickText && quickTextInput) {
-    btnClearQuickText.addEventListener('click', () => {
-      quickTextInput.value = '';
-      if (quickTextCharCount) quickTextCharCount.textContent = '0 characters';
-    });
-  }
-
-  if (btnSendQuickText && quickTextInput) {
-    btnSendQuickText.addEventListener('click', () => {
-      const text = quickTextInput.value.trim();
-      if (!text) {
-        alert('Please enter some text or a link to send.');
-        quickTextInput.focus();
-        return;
-      }
-
-      if (activeConnection && activeConnection.open) {
-        activeConnection.send({ type: 'TEXT', text });
-        if (textToast) {
-          textToast.style.display = 'block';
-          textToast.textContent = 'Text sent directly to connected peer!';
-          setTimeout(() => textToast.style.display = 'none', 3000);
+        function resetReceiverState() {
+          if (roomInputContainer) roomInputContainer.style.display = 'flex';
+          if (receiveStatusBox) receiveStatusBox.style.display = 'none';
+          const platformCard = document.getElementById('platform-connection-card');
+          if (platformCard) platformCard.style.display = 'none';
+          if (incomingAcceptCard) incomingAcceptCard.style.display = 'none';
+          if (activeTransferCard) activeTransferCard.style.display = 'none';
         }
-      } else {
-        alert('No active peer connected yet. Create or join a room first to establish a direct link!');
       }
-    });
-  }
 
-  // =========================================================================
-  // 14. COPY BUTTONS & UTILITIES
-  // =========================================================================
-  if (btnCopyCode) {
-    btnCopyCode.addEventListener('click', () => {
-      if (currentRoomCode) {
-        navigator.clipboard.writeText(currentRoomCode).then(() => {
-          btnCopyCode.textContent = 'Copied!';
-          setTimeout(() => btnCopyCode.textContent = 'Copy Code', 2000);
+      // =========================================================================
+      // 12. AUTOMATIC QR CODE URL DETECTOR (?room=LD-XXXXXX) & DEEP LINKING
+      // =========================================================================
+      // NATIVE APP DEEP LINKING & AUTO-REDIRECTION
+      // =========================================================================
+      function setupNativeAppBanner(roomCode) {
+        const banner = document.getElementById('mobile-app-banner');
+        const btnOpen = document.getElementById('btn-open-in-app');
+        if (!banner || !btnOpen) return;
+
+        const ua = navigator.userAgent;
+        const isAndroid = /android/i.test(ua);
+        const isMobile = /android|iphone|ipad|ipod/i.test(ua);
+
+        if (isMobile) {
+          banner.style.display = 'flex';
+          if (isAndroid) {
+            // Intent URL for installed LynqDrop Android app
+            const intentUrl = `intent://room?code=${encodeURIComponent(roomCode)}#Intent;scheme=lynqdrop;package=com.app.lynqdrop;end`;
+            btnOpen.href = intentUrl;
+            btnOpen.textContent = 'Open in App';
+          } else {
+            btnOpen.href = `lynqdrop://room?code=${encodeURIComponent(roomCode)}`;
+            btnOpen.textContent = 'Open in App';
+          }
+        }
+      }
+
+      function attemptMobileAutoRedirect(roomCode) {
+        try {
+          const ua = navigator.userAgent;
+          const isAndroid = /android/i.test(ua);
+          const isIOS = /iphone|ipad|ipod/i.test(ua);
+          const isMobile = isAndroid || isIOS;
+          const redirectKey = 'ld_app_redirect_attempted_' + roomCode;
+
+          if (isMobile && !sessionStorage.getItem(redirectKey)) {
+            sessionStorage.setItem(redirectKey, 'true');
+            console.log('[LynqDrop] Attempting zero-prompt native app redirect for:', roomCode);
+            if (isAndroid) {
+              const intentUrl = `intent://room?code=${encodeURIComponent(roomCode)}#Intent;scheme=lynqdrop;package=com.app.lynqdrop;end`;
+              window.location.href = intentUrl;
+            } else if (isIOS) {
+              window.location.href = `lynqdrop://room?code=${encodeURIComponent(roomCode)}`;
+            }
+          }
+        } catch (e) {
+          console.warn('[LynqDrop] Auto redirect error:', e);
+        }
+      }
+
+      function checkUrlForAutoJoin() {
+        try {
+          let codeToJoin = null;
+          const params = new URLSearchParams(window.location.search);
+          const qRoom = params.get('room');
+          if (qRoom) codeToJoin = normalizeRoomCode(qRoom);
+
+          if (!codeToJoin && window.location.hash) {
+            const match = window.location.hash.match(/room=([A-Za-z0-9\-]+)/);
+            if (match && match[1]) codeToJoin = normalizeRoomCode(match[1]);
+          }
+
+          if (codeToJoin && isValidRoomCode(codeToJoin)) {
+            console.log('[LynqDrop] Auto-joining room:', codeToJoin);
+
+            // Zero-prompt auto redirect on mobile phones if native app is installed
+            attemptMobileAutoRedirect(codeToJoin);
+
+            const savedRole = sessionStorage.getItem('ld_room_' + codeToJoin);
+            if (savedRole === 'sender') {
+              console.log('[LynqDrop] Restoring sender session for room:', codeToJoin);
+              initializeSenderRoom(codeToJoin);
+            } else {
+              // Hide hero banner on phone to give full focus to incoming transfer
+              document.body.classList.add('qr-joined');
+              document.body.classList.add('mobile-app-mode');
+
+              // Switch to Receive subview immediately
+              window.switchBrowserShareSubView('receive');
+
+              if (inputJoinCode) inputJoinCode.value = codeToJoin;
+              if (roomInputContainer) roomInputContainer.style.display = 'none';
+              if (receiveStatusBox) receiveStatusBox.style.display = 'inline-flex';
+              if (receiveHeadingText) receiveHeadingText.textContent = `Connecting to ${codeToJoin}...`;
+              if (receiveDescText) receiveDescText.textContent = 'Joining room & launching live chat...';
+
+              // Setup native Android app deep link banner
+              setupNativeAppBanner(codeToJoin);
+
+              // Auto-scroll directly to the sharing hub
+              const hub = document.getElementById('sharing-hub');
+              if (hub) {
+                hub.scrollIntoView({ behavior: 'smooth', block: 'start' });
+              }
+
+              // Automatically initiate connection immediately (NO manual click needed)
+              joinReceiveSession(codeToJoin);
+            }
+          } else {
+            // No room in URL -> sender mode on PC/web -> create sender room immediately
+            initializeSenderRoom();
+          }
+        } catch (_) { }
+      }
+      checkUrlForAutoJoin();
+
+      // Expose LynqDrop API on window for automated verification & programmatic usage
+      window.lynqdrop = {
+        createSenderRoom: initializeSenderRoom,
+        joinReceiveSession: joinReceiveSession,
+        getRoomCode: () => currentRoomCode,
+        getActivePeer: () => activePeer,
+        getActiveConnection: () => activeConnection,
+        getSelectedFiles: () => selectedFiles,
+        getMyDevice: () => myDevice,
+        addFiles: addFilesToQueue,
+        openLiveRoom: openLiveRoom,
+        sendLiveChatMessage: sendLiveChatMessage,
+        sendLiveFiles: sendLiveFiles,
+        showRoomEndedModal: showRoomEndedModal
+      };
+
+      // =========================================================================
+      // 13. QUICK TEXT & CLIPBOARD
+      // =========================================================================
+      if (quickTextInput && quickTextCharCount) {
+        quickTextInput.addEventListener('input', () => {
+          quickTextCharCount.textContent = `${quickTextInput.value.length} characters`;
         });
       }
-    });
-  }
 
-  if (btnCopyShareUrl) {
-    btnCopyShareUrl.addEventListener('click', () => {
-      if (shareUrlField && shareUrlField.value) {
-        navigator.clipboard.writeText(shareUrlField.value).then(() => {
-          btnCopyShareUrl.textContent = 'Link Copied!';
-          setTimeout(() => btnCopyShareUrl.textContent = 'Copy Share Link', 2000);
+      if (btnClearQuickText && quickTextInput) {
+        btnClearQuickText.addEventListener('click', () => {
+          quickTextInput.value = '';
+          if (quickTextCharCount) quickTextCharCount.textContent = '0 characters';
         });
       }
-    });
-  }
 
-  if (btnCancelTransfer) {
-    btnCancelTransfer.addEventListener('click', () => {
-      transferInProgress = false;
-      if (activeTransferCard) activeTransferCard.style.display = 'none';
-      if (activeConnection) {
-        try { activeConnection.close(); } catch (_) { }
-      }
-      alert('Transfer cancelled.');
-    });
-  }
+      if (btnSendQuickText && quickTextInput) {
+        btnSendQuickText.addEventListener('click', () => {
+          const text = quickTextInput.value.trim();
+          if (!text) {
+            alert('Please enter some text or a link to send.');
+            quickTextInput.focus();
+            return;
+          }
 
-  if (btnResetComplete) {
-    btnResetComplete.addEventListener('click', () => {
-      if (transferCompleteCard) transferCompleteCard.style.display = 'none';
-      cleanupSenderRoom();
-      window.switchBrowserShareSubView('send');
-    });
-  }
-
-  // =========================================================================
-  // 15. UNIFIED LOCAL LAN IP CONNECTOR
-  // =========================================================================
-  const btnToggleLanMode = document.getElementById('btn-toggle-lan-mode');
-  const lanDirectCard = document.getElementById('lan-direct-card');
-  const btnConnectLan = document.getElementById('btn-lan-connect');
-  const inputLanHost = document.getElementById('lan-target-host');
-
-  if (btnToggleLanMode && lanDirectCard) {
-    btnToggleLanMode.addEventListener('click', () => {
-      const isVisible = lanDirectCard.style.display === 'block';
-      lanDirectCard.style.display = isVisible ? 'none' : 'block';
-      if (!isVisible && inputLanHost) inputLanHost.focus();
-    });
-  }
-
-  if (btnConnectLan) {
-    btnConnectLan.addEventListener('click', () => {
-      let host = (inputLanHost?.value || '').trim();
-      if (!host) {
-        alert('Please enter your local device IP and Port (e.g. 192.168.1.18:53317).');
-        if (inputLanHost) inputLanHost.focus();
-        return;
-      }
-
-      if (!host.startsWith('http://') && !host.startsWith('https://')) {
-        host = 'http://' + host;
-      }
-
-      window.open(host, '_blank');
-    });
-  }
-
-  // =========================================================================
-  // 16. ROOM ADMIN CONTROLS & ACTIVE IN-SCREEN PRESENCE MODALS
-  // =========================================================================
-  const adminCreatePills = document.querySelectorAll('#admin-create-limit-pills .btn-limit-pill');
-  const currentLimitBadge = document.getElementById('current-limit-badge');
-  adminCreatePills.forEach(pill => {
-    pill.addEventListener('click', () => {
-      adminCreatePills.forEach(p => p.classList.remove('active'));
-      pill.classList.add('active');
-      const limit = parseInt(pill.dataset.limit, 10) || 0;
-      roomMaxParticipants = limit;
-      if (currentLimitBadge) {
-        currentLimitBadge.textContent = limit === 0 ? 'Unlimited' : `${limit} Peers`;
-      }
-    });
-  });
-
-  // Topbar Presence Pill -> Open Participants Roster Modal
-  const livePresencePill = document.getElementById('live-presence-pill');
-  const roomParticipantsModal = document.getElementById('room-participants-modal');
-  const btnCloseParticipantsModal = document.getElementById('btn-close-participants-modal');
-  const btnCloseParticipantsFooter = document.getElementById('btn-close-participants-footer');
-
-  if (livePresencePill) {
-    livePresencePill.addEventListener('click', () => {
-      if (roomParticipantsModal) {
-        renderPresenceUI();
-        roomParticipantsModal.style.display = 'flex';
-      }
-    });
-  }
-  if (btnCloseParticipantsModal) {
-    btnCloseParticipantsModal.onclick = () => {
-      if (roomParticipantsModal) roomParticipantsModal.style.display = 'none';
-    };
-  }
-  if (btnCloseParticipantsFooter) {
-    btnCloseParticipantsFooter.onclick = () => {
-      if (roomParticipantsModal) roomParticipantsModal.style.display = 'none';
-    };
-  }
-
-  // Admin Settings Modal (Change limit while in room)
-  const btnAdminSettings = document.getElementById('btn-admin-room-settings');
-  const adminSettingsModal = document.getElementById('admin-settings-modal');
-  const btnCloseAdminModal = document.getElementById('btn-close-admin-modal');
-  const btnCloseAdminFooter = document.getElementById('btn-close-admin-footer');
-  const adminModalPills = document.querySelectorAll('#admin-modal-limit-pills .btn-limit-pill');
-  const adminLimitStatusMsg = document.getElementById('admin-limit-status-msg');
-
-  if (btnAdminSettings) {
-    btnAdminSettings.addEventListener('click', () => {
-      if (adminSettingsModal) {
-        adminSettingsModal.style.display = 'flex';
-        adminModalPills.forEach(p => {
-          const lim = parseInt(p.dataset.limit, 10) || 0;
-          p.classList.toggle('active', lim === roomMaxParticipants);
+          if (activeConnection && activeConnection.open) {
+            activeConnection.send({ type: 'TEXT', text });
+            if (textToast) {
+              textToast.style.display = 'block';
+              textToast.textContent = 'Text sent directly to connected peer!';
+              setTimeout(() => textToast.style.display = 'none', 3000);
+            }
+          } else {
+            alert('No active peer connected yet. Create or join a room first to establish a direct link!');
+          }
         });
-        if (adminLimitStatusMsg) adminLimitStatusMsg.textContent = '';
       }
-    });
-  }
 
-  adminModalPills.forEach(pill => {
-    pill.addEventListener('click', () => {
-      adminModalPills.forEach(p => p.classList.remove('active'));
-      pill.classList.add('active');
-      const limit = parseInt(pill.dataset.limit, 10) || 0;
-      roomMaxParticipants = limit;
-      if (adminLimitStatusMsg) {
-        adminLimitStatusMsg.textContent = `✓ Room limit updated to ${limit === 0 ? 'Unlimited' : limit + ' participants'}`;
+      // =========================================================================
+      // 14. COPY BUTTONS & UTILITIES
+      // =========================================================================
+      if (btnCopyCode) {
+        btnCopyCode.addEventListener('click', () => {
+          if (currentRoomCode) {
+            navigator.clipboard.writeText(currentRoomCode).then(() => {
+              btnCopyCode.textContent = 'Copied!';
+              setTimeout(() => btnCopyCode.textContent = 'Copy Code', 2000);
+            });
+          }
+        });
       }
-      sendPacket({
-        type: 'ROOM_CONFIG_UPDATE',
-        maxParticipants: limit,
-        adminId: myClientId
+
+      if (btnCopyShareUrl) {
+        btnCopyShareUrl.addEventListener('click', () => {
+          if (shareUrlField && shareUrlField.value) {
+            navigator.clipboard.writeText(shareUrlField.value).then(() => {
+              btnCopyShareUrl.textContent = 'Link Copied!';
+              setTimeout(() => btnCopyShareUrl.textContent = 'Copy Share Link', 2000);
+            });
+          }
+        });
+      }
+
+      if (btnCancelTransfer) {
+        btnCancelTransfer.addEventListener('click', () => {
+          transferInProgress = false;
+          if (activeTransferCard) activeTransferCard.style.display = 'none';
+          if (activeConnection) {
+            try { activeConnection.close(); } catch (_) { }
+          }
+          alert('Transfer cancelled.');
+        });
+      }
+
+      if (btnResetComplete) {
+        btnResetComplete.addEventListener('click', () => {
+          if (transferCompleteCard) transferCompleteCard.style.display = 'none';
+          cleanupSenderRoom();
+          window.switchBrowserShareSubView('send');
+        });
+      }
+
+      // =========================================================================
+      // 15. UNIFIED LOCAL LAN IP CONNECTOR
+      // =========================================================================
+      const btnToggleLanMode = document.getElementById('btn-toggle-lan-mode');
+      const lanDirectCard = document.getElementById('lan-direct-card');
+      const btnConnectLan = document.getElementById('btn-lan-connect');
+      const inputLanHost = document.getElementById('lan-target-host');
+
+      if (btnToggleLanMode && lanDirectCard) {
+        btnToggleLanMode.addEventListener('click', () => {
+          const isVisible = lanDirectCard.style.display === 'block';
+          lanDirectCard.style.display = isVisible ? 'none' : 'block';
+          if (!isVisible && inputLanHost) inputLanHost.focus();
+        });
+      }
+
+      if (btnConnectLan) {
+        btnConnectLan.addEventListener('click', () => {
+          let host = (inputLanHost?.value || '').trim();
+          if (!host) {
+            alert('Please enter your local device IP and Port (e.g. 192.168.1.18:53317).');
+            if (inputLanHost) inputLanHost.focus();
+            return;
+          }
+
+          if (!host.startsWith('http://') && !host.startsWith('https://')) {
+            host = 'http://' + host;
+          }
+
+          window.open(host, '_blank');
+        });
+      }
+
+      // =========================================================================
+      // 16. ROOM ADMIN CONTROLS & ACTIVE IN-SCREEN PRESENCE MODALS
+      // =========================================================================
+      const adminCreatePills = document.querySelectorAll('#admin-create-limit-pills .btn-limit-pill');
+      const currentLimitBadge = document.getElementById('current-limit-badge');
+      adminCreatePills.forEach(pill => {
+        pill.addEventListener('click', () => {
+          adminCreatePills.forEach(p => p.classList.remove('active'));
+          pill.classList.add('active');
+          const limit = parseInt(pill.dataset.limit, 10) || 0;
+          roomMaxParticipants = limit;
+          if (currentLimitBadge) {
+            currentLimitBadge.textContent = limit === 0 ? 'Unlimited' : `${limit} Peers`;
+          }
+        });
       });
-      renderPresenceUI();
-    });
-  });
 
-  if (btnCloseAdminModal) {
-    btnCloseAdminModal.onclick = () => {
-      if (adminSettingsModal) adminSettingsModal.style.display = 'none';
-    };
-  }
-  if (btnCloseAdminFooter) {
-    btnCloseAdminFooter.onclick = () => {
-      if (adminSettingsModal) adminSettingsModal.style.display = 'none';
-    };
-  }
-});
+      // Topbar Presence Pill -> Open Participants Roster Modal
+      const livePresencePill = document.getElementById('live-presence-pill');
+      const roomParticipantsModal = document.getElementById('room-participants-modal');
+      const btnCloseParticipantsModal = document.getElementById('btn-close-participants-modal');
+      const btnCloseParticipantsFooter = document.getElementById('btn-close-participants-footer');
+
+      if (livePresencePill) {
+        livePresencePill.addEventListener('click', () => {
+          if (roomParticipantsModal) {
+            renderPresenceUI();
+            roomParticipantsModal.style.display = 'flex';
+          }
+        });
+      }
+      if (btnCloseParticipantsModal) {
+        btnCloseParticipantsModal.onclick = () => {
+          if (roomParticipantsModal) roomParticipantsModal.style.display = 'none';
+        };
+      }
+      if (btnCloseParticipantsFooter) {
+        btnCloseParticipantsFooter.onclick = () => {
+          if (roomParticipantsModal) roomParticipantsModal.style.display = 'none';
+        };
+      }
+
+      // Admin Settings Modal (Change limit while in room)
+      const btnAdminSettings = document.getElementById('btn-admin-room-settings');
+      const adminSettingsModal = document.getElementById('admin-settings-modal');
+      const btnCloseAdminModal = document.getElementById('btn-close-admin-modal');
+      const btnCloseAdminFooter = document.getElementById('btn-close-admin-footer');
+      const adminModalPills = document.querySelectorAll('#admin-modal-limit-pills .btn-limit-pill');
+      const adminLimitStatusMsg = document.getElementById('admin-limit-status-msg');
+
+      if (btnAdminSettings) {
+        btnAdminSettings.addEventListener('click', () => {
+          if (adminSettingsModal) {
+            adminSettingsModal.style.display = 'flex';
+            adminModalPills.forEach(p => {
+              const lim = parseInt(p.dataset.limit, 10) || 0;
+              p.classList.toggle('active', lim === roomMaxParticipants);
+            });
+            if (adminLimitStatusMsg) adminLimitStatusMsg.textContent = '';
+          }
+        });
+      }
+
+      adminModalPills.forEach(pill => {
+        pill.addEventListener('click', () => {
+          adminModalPills.forEach(p => p.classList.remove('active'));
+          pill.classList.add('active');
+          const limit = parseInt(pill.dataset.limit, 10) || 0;
+          roomMaxParticipants = limit;
+          if (adminLimitStatusMsg) {
+            adminLimitStatusMsg.textContent = `✓ Room limit updated to ${limit === 0 ? 'Unlimited' : limit + ' participants'}`;
+          }
+          sendPacket({
+            type: 'ROOM_CONFIG_UPDATE',
+            maxParticipants: limit,
+            adminId: myClientId
+          });
+          renderPresenceUI();
+        });
+      });
+
+      if (btnCloseAdminModal) {
+        btnCloseAdminModal.onclick = () => {
+          if (adminSettingsModal) adminSettingsModal.style.display = 'none';
+        };
+      }
+      if (btnCloseAdminFooter) {
+        btnCloseAdminFooter.onclick = () => {
+          if (adminSettingsModal) adminSettingsModal.style.display = 'none';
+        };
+      }
+    });
