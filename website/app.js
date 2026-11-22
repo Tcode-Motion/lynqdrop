@@ -379,7 +379,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (platformCard) platformCard.style.display = 'none';
 
     if (p2pLiveRoom) p2pLiveRoom.style.display = 'flex';
-    if (liveRoomCodeTag) liveRoomCodeTag.textContent = `Room: ${code}`;
+    if (liveRoomCodeTag) liveRoomCodeTag.textContent = code;
 
     if (livePeerName) {
       livePeerName.textContent = remoteDevice ? remoteDevice.name : (isHost ? 'Receiver' : 'Sender');
@@ -389,30 +389,33 @@ document.addEventListener('DOMContentLoaded', () => {
       peerAvatarIcon.textContent = os.includes('win') ? '💻' : os.includes('mac') ? '🍏' : os.includes('android') ? '📱' : os.includes('ios') ? '📱' : '🌐';
     }
     if (livePeerStatusText) {
-      const hasP2P = activeConnection && (activeConnection.open || (activeConnection.dataChannel && activeConnection.dataChannel.readyState === 'open'));
-      livePeerStatusText.textContent = hasP2P ? 'online • Direct P2P Encrypted' : 'online • Fast Relay Encrypted';
+      const dc = (activeConnection && activeConnection.dataChannel);
+      const hasP2P = (activeConnection && activeConnection.open) || (dc && dc.readyState === 'open');
+      livePeerStatusText.textContent = hasP2P ? 'online • Direct P2P' : 'online • Fast Relay';
     }
 
-    if (btnLiveCopyLink) {
-      btnLiveCopyLink.onclick = () => {
-        const url = `${window.location.origin}/?room=${encodeURIComponent(code)}`;
-        navigator.clipboard.writeText(url).then(() => {
-          alert(`Invite link copied to clipboard!\n${url}`);
-        });
-      };
-    }
+    const copyRoomLink = () => {
+      const url = `${window.location.origin}/?room=${encodeURIComponent(code)}`;
+      navigator.clipboard.writeText(url).then(() => {
+        alert(`Invite link copied to clipboard!\n${url}`);
+      });
+    };
 
-    if (btnLeaveLiveRoom) {
-      btnLeaveLiveRoom.onclick = () => {
-        if (confirm('Leave this room and terminate the direct P2P session?')) {
-          document.body.classList.remove('in-live-room');
-          if (activeConnection && activeConnection.open) {
-            try { activeConnection.send({ type: 'ROOM_TERMINATED', reason: 'Peer left the room.' }); } catch (_) { }
-          }
-          window.location.href = window.location.origin;
-        }
-      };
-    }
+    if (btnLiveCopyLink) btnLiveCopyLink.onclick = copyRoomLink;
+    const liveRoomBadge = document.getElementById('live-room-badge');
+    if (liveRoomBadge) liveRoomBadge.onclick = copyRoomLink;
+
+    const handleLeaveRoom = () => {
+      if (confirm('Leave this room and terminate the session?')) {
+        document.body.classList.remove('in-live-room');
+        sendPacket({ type: 'ROOM_TERMINATED', reason: 'Peer left the room.' }, true);
+        window.location.href = window.location.origin;
+      }
+    };
+
+    if (btnLeaveLiveRoom) btnLeaveLiveRoom.onclick = handleLeaveRoom;
+    const btnLeaveLiveRoomArrow = document.getElementById('btn-leave-live-room-arrow');
+    if (btnLeaveLiveRoomArrow) btnLeaveLiveRoomArrow.onclick = handleLeaveRoom;
 
     // Initialize chat input handlers
     if (chatTextInput && !chatTextInput._initialized) {
@@ -675,7 +678,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
   async function sendLiveFiles(fileList) {
     if (!fileList || fileList.length === 0) return;
-    const hasP2P = activeConnection && (activeConnection.open || (activeConnection.dataChannel && activeConnection.dataChannel.readyState === 'open'));
+    const dc = (activeConnection && activeConnection.dataChannel) || (activeConnection && activeConnection._dc);
+    const isP2POpen = (dc && dc.readyState === 'open');
+    if (isP2POpen && activeConnection) {
+      activeConnection.open = true;
+    }
+    const hasP2P = (activeConnection && activeConnection.open) || isP2POpen;
     const hasRelay = activeRelay && activeRelay.connected;
     if (!hasP2P && !hasRelay) {
       console.log('[LynqDrop] Transport handshaking, queued files in pendingFilesQueue');
@@ -683,7 +691,10 @@ document.addEventListener('DOMContentLoaded', () => {
       return;
     }
 
-    const dc = hasP2P ? activeConnection.dataChannel : null;
+    if (dc) {
+      try { dc.binaryType = 'arraybuffer'; } catch (_) {}
+    }
+
     for (let i = 0; i < fileList.length; i++) {
       const rawFile = fileList[i].rawFile || fileList[i];
       appendChatFileCard({
@@ -708,19 +719,35 @@ document.addEventListener('DOMContentLoaded', () => {
 
       let offset = 0;
       const startTime = Date.now();
-      const RELAY_CHUNK_SIZE = 32 * 1024;
-      const WEBRTC_CHUNK_SIZE = CHUNK_SIZE;
+      const RELAY_CHUNK_SIZE = 64 * 1024; // 64 KiB chunks
+      const WEBRTC_CHUNK_SIZE = 128 * 1024; // 128 KiB high-throughput Wi-Fi chunks
+      const HIGH_BUF = 4 * 1024 * 1024; // 4 MiB backpressure ceiling
+      const LOW_BUF = 1 * 1024 * 1024;  // 1 MiB resume threshold
+
+      if (dc) {
+        try { dc.bufferedAmountLowThreshold = LOW_BUF; } catch (_) {}
+      }
 
       while (offset < rawFile.size) {
-        if (hasP2P && dc && (activeConnection && activeConnection.open)) {
-          if (dc.bufferedAmount > HIGH_WATER_MARK) {
+        if (hasP2P && dc && dc.readyState === 'open') {
+          if (dc.bufferedAmount > HIGH_BUF) {
             await new Promise((resolve) => {
-              const check = setInterval(() => {
-                if (!dc || dc.bufferedAmount < LOW_WATER_MARK) {
-                  clearInterval(check);
+              let resolved = false;
+              const onLow = () => {
+                if (!resolved) {
+                  resolved = true;
+                  dc.removeEventListener('bufferedamountlow', onLow);
                   resolve();
                 }
-              }, 10);
+              };
+              dc.addEventListener('bufferedamountlow', onLow);
+              setTimeout(() => {
+                if (!resolved) {
+                  resolved = true;
+                  dc.removeEventListener('bufferedamountlow', onLow);
+                  resolve();
+                }
+              }, 25);
             });
           }
 
@@ -732,10 +759,12 @@ document.addEventListener('DOMContentLoaded', () => {
               fileIndex: i,
               chunk: buffer
             });
-          } catch (_) { }
+          } catch (e) {
+            console.warn('[LynqDrop] WebRTC conn.send failed:', e);
+          }
           offset += buffer.byteLength;
         } else {
-          // Stream chunk via BrowserRelay
+          // High-throughput Relay streaming
           const slice = rawFile.slice(offset, offset + RELAY_CHUNK_SIZE);
           const buffer = await slice.arrayBuffer();
           let binary = '';
@@ -755,7 +784,7 @@ document.addEventListener('DOMContentLoaded', () => {
             });
           }
           offset += len;
-          await new Promise(r => setTimeout(r, 12));
+          await new Promise(r => setTimeout(r, 1));
         }
 
         const pct = Math.min(100, Math.round((offset / rawFile.size) * 100));
@@ -1789,6 +1818,11 @@ document.addEventListener('DOMContentLoaded', () => {
     function handleSenderOpen() {
       if (senderOpenHandled) return;
       senderOpenHandled = true;
+      activeConnection = conn;
+      conn.open = true;
+      if (conn.dataChannel) {
+        try { conn.dataChannel.binaryType = 'arraybuffer'; } catch (_) {}
+      }
       console.log('[LynqDrop] DataChannel OPEN with receiver');
       if (roomStatusLabel) roomStatusLabel.textContent = 'Direct P2P DataChannel Connected';
 
@@ -2149,6 +2183,11 @@ document.addEventListener('DOMContentLoaded', () => {
     function handleReceiverOpen() {
       if (receiverOpenHandled) return;
       receiverOpenHandled = true;
+      activeConnection = conn;
+      conn.open = true;
+      if (conn.dataChannel) {
+        try { conn.dataChannel.binaryType = 'arraybuffer'; } catch (_) {}
+      }
       console.log('[LynqDrop Receiver] DataChannel OPEN with sender');
       if (receiveStatusBox) receiveStatusBox.style.display = 'inline-flex';
       if (receiveStatusText) receiveStatusText.textContent = 'Connected! Entering room...';

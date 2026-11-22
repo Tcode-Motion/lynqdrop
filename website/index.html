@@ -23,7 +23,7 @@
   <link rel="manifest" href="./manifest.webmanifest">
   <meta name="theme-color" content="#080b14">
 
-  <link rel="stylesheet" href="./style.css?v=2.6.0">
+  <link rel="stylesheet" href="./style.css?v=2.9.0">
 
   <script type="application/ld+json">
   {
@@ -370,6 +370,9 @@
           <!-- WhatsApp Top Room Header -->
           <div class="live-room-topbar wa-topbar">
             <div class="peer-header-identity">
+              <button type="button" class="btn-leave-room-mobile" id="btn-leave-live-room-arrow" title="Back / Exit Room">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+              </button>
               <div class="peer-avatar-circle" id="peer-avatar-circle">
                 <span id="peer-avatar-icon">📱</span>
                 <span class="live-status-dot"></span>
@@ -381,10 +384,10 @@
             </div>
 
             <div class="wa-topbar-actions">
-              <div class="room-identity-pill">
-                <span id="live-room-code-tag" class="room-code-tag">Room: LD-------</span>
+              <div class="room-identity-pill" id="live-room-badge" title="Tap to Copy Room Code">
+                <span id="live-room-code-tag" class="room-code-tag">LD-------</span>
                 <button type="button" class="btn-icon-copy" id="btn-live-copy-link" title="Copy Room Invite Link">
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
                 </button>
               </div>
               <button type="button" class="btn-leave-room" id="btn-leave-live-room" title="Disconnect & Exit Room">
@@ -799,6 +802,6 @@
   <!-- Scripts (Versioned for Instant Cache Busting) -->
   <script src="./peerjs.min.js?v=2.6.0"></script>
   <script src="./qrcode.min.js?v=2.7.4"></script>
-  <script src="./app.js?v=2.8.2"></script>
+  <script src="./app.js?v=2.9.0"></script>
 </body>
 </html>
