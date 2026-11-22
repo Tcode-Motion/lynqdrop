@@ -2231,14 +2231,89 @@ footer.site-footer {
 }
 
 @media (max-width: 768px) {
+  body.in-live-room {
+    overflow: hidden !important;
+    position: fixed !important;
+    width: 100vw !important;
+    height: 100dvh !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    top: 0 !important;
+    left: 0 !important;
+  }
+  body.in-live-room .site-header,
+  body.in-live-room header,
+  body.in-live-room footer,
+  body.in-live-room .hero-banner,
+  body.in-live-room .features-section,
+  body.in-live-room .tech-specs,
+  body.in-live-room .brand-header,
+  body.in-live-room .subview-bar,
+  body.in-live-room #subview-card-send,
+  body.in-live-room #subview-card-receive,
+  body.in-live-room #subview-card-text {
+    display: none !important;
+  }
+  body.in-live-room .sharing-hub {
+    margin: 0 !important;
+    padding: 0 !important;
+    max-width: 100vw !important;
+    width: 100vw !important;
+    height: 100dvh !important;
+    border: none !important;
+    box-shadow: none !important;
+    background: transparent !important;
+  }
   .p2p-live-room {
-    height: calc(100dvh - 75px);
-    max-height: calc(100dvh - 75px);
-    border-radius: 0;
-    margin: -14px -12px;
+    position: fixed !important;
+    top: 0 !important;
+    left: 0 !important;
+    right: 0 !important;
+    bottom: 0 !important;
+    width: 100vw !important;
+    height: 100dvh !important;
+    max-height: 100dvh !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    border: none !important;
+    border-radius: 0 !important;
+    z-index: 999999 !important;
+    display: flex !important;
+    flex-direction: column !important;
+    box-shadow: none !important;
+  }
+  .live-room-topbar,
+  .wa-topbar {
+    height: 56px !important;
+    min-height: 56px !important;
+    padding: 0 12px !important;
+    padding-top: env(safe-area-inset-top, 0px) !important;
+    box-sizing: content-box !important;
+  }
+  .chat-feed-container {
+    flex: 1 1 0% !important;
+    height: auto !important;
+    overflow-y: auto !important;
+    -webkit-overflow-scrolling: touch !important;
+    padding: 10px 10px !important;
+  }
+  .chat-input-bar {
+    padding: 8px 8px !important;
+    padding-bottom: max(8px, env(safe-area-inset-bottom, 8px)) !important;
+    background: #202c33 !important;
+    min-height: 54px !important;
+    gap: 6px !important;
+  }
+  .chat-text-textbox {
+    font-size: 15px !important;
+    padding: 8px 12px !important;
+  }
+  .btn-chat-action {
+    width: 38px !important;
+    height: 38px !important;
   }
   .chat-bubble {
-    max-width: 86%;
+    max-width: 86% !important;
   }
 }
 

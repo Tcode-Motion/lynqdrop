@@ -86,8 +86,17 @@ document.addEventListener('DOMContentLoaded', () => {
       { urls: 'stun:stun1.l.google.com:19302' },
       { urls: 'stun:stun2.l.google.com:19302' },
       { urls: 'stun:stun.cloudflare.com:3478' },
-      { urls: 'stun:stun.nextcloud.com:3478' },
-      { urls: 'stun:relay.metered.ca:80' }
+      { urls: 'stun:openrelay.metered.ca:80' },
+      {
+        urls: [
+          'turn:openrelay.metered.ca:80',
+          'turn:openrelay.metered.ca:443',
+          'turn:openrelay.metered.ca:443?transport=tcp',
+          'turns:openrelay.metered.ca:443?transport=tcp'
+        ],
+        username: 'openrelayproject',
+        credential: 'openrelayproject'
+      }
     ],
     iceCandidatePoolSize: 2
   };
@@ -350,6 +359,7 @@ document.addEventListener('DOMContentLoaded', () => {
   function openLiveRoom(code, isHost) {
     liveRoomOpen = true;
     currentRoomCode = code;
+    document.body.classList.add('in-live-room');
 
     // Transition out lobby views
     if (sharingRoomCard) sharingRoomCard.style.display = 'none';
@@ -403,6 +413,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (btnLeaveLiveRoom) {
       btnLeaveLiveRoom.onclick = () => {
         if (confirm('Leave this room and terminate the direct P2P session?')) {
+          document.body.classList.remove('in-live-room');
           if (activeConnection && activeConnection.open) {
             try { activeConnection.send({ type: 'ROOM_TERMINATED', reason: 'Peer left the room.' }); } catch (_) { }
           }
@@ -630,28 +641,27 @@ document.addEventListener('DOMContentLoaded', () => {
     const text = (chatTextInput.value || '').trim();
     if (!text) return;
 
-    const hasP2P = activeConnection && (activeConnection.open || (activeConnection.dataChannel && activeConnection.dataChannel.readyState === 'open'));
-    const hasRelay = activeRelay && activeRelay.connected;
-    if (!hasP2P && !hasRelay) {
-      alert('Connection to room peer not established.');
-      return;
-    }
-
     const time = Date.now();
+    const packet = {
+      id: 'p_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7),
+      type: 'CHAT_MSG',
+      text: text,
+      time: time
+    };
+
     appendChatMessage({
       sender: myDevice.name,
       text: text,
       time: time,
       isMine: true
     });
-
-    sendPacket({
-      type: 'CHAT_MSG',
-      text: text,
-      time: time
-    });
-
     chatTextInput.value = '';
+
+    const sent = sendPacket(packet);
+    if (!sent) {
+      console.log('[LynqDrop] Transport handshaking, queued chat message in pendingOutbox');
+      pendingOutbox.push(packet);
+    }
   }
 
   async function sendLiveFiles(fileList) {
@@ -659,7 +669,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const hasP2P = activeConnection && (activeConnection.open || (activeConnection.dataChannel && activeConnection.dataChannel.readyState === 'open'));
     const hasRelay = activeRelay && activeRelay.connected;
     if (!hasP2P && !hasRelay) {
-      alert('Connection to room peer not established.');
+      console.log('[LynqDrop] Transport handshaking, queued files in pendingFilesQueue');
+      pendingFilesQueue.push(...fileList);
       return;
     }
 
@@ -843,6 +854,7 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   function showRoomEndedModal(reason) {
+    document.body.classList.remove('in-live-room');
     if (roomEndedModal) {
       if (roomEndedReason) roomEndedReason.textContent = reason || 'The host or connected peer disconnected. All temporary transfer memory was securely cleared.';
       roomEndedModal.style.display = 'flex';
@@ -1236,9 +1248,48 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
-  // Dual transport state
+  // Dual transport state & outbox queues
   let activeRelay = null;
   const seenPacketIds = new Set();
+  const pendingOutbox = [];
+  const pendingFilesQueue = [];
+
+  function flushPendingOutbox() {
+    const hasP2P = activeConnection && (activeConnection.open || (activeConnection.dataChannel && activeConnection.dataChannel.readyState === 'open'));
+    const hasRelay = activeRelay && activeRelay.connected;
+    if (hasP2P || hasRelay) {
+      if (pendingOutbox.length > 0) {
+        console.log(`[LynqDrop] Flushing ${pendingOutbox.length} queued messages from outbox`);
+        const toSend = [...pendingOutbox];
+        pendingOutbox.length = 0;
+        for (const pkt of toSend) {
+          const ok = sendPacket(pkt);
+          if (!ok) pendingOutbox.push(pkt);
+        }
+      }
+      if (pendingFilesQueue.length > 0) {
+        console.log(`[LynqDrop] Flushing ${pendingFilesQueue.length} queued files from outbox`);
+        const files = [...pendingFilesQueue];
+        pendingFilesQueue.length = 0;
+        sendLiveFiles(files);
+      }
+    }
+  }
+  setInterval(flushPendingOutbox, 400);
+
+  function updateLivePeerStatus() {
+    if (!livePeerStatusText) return;
+    const hasP2P = activeConnection && (activeConnection.open || (activeConnection.dataChannel && activeConnection.dataChannel.readyState === 'open'));
+    const hasRelay = activeRelay && activeRelay.connected;
+    if (hasP2P) {
+      livePeerStatusText.textContent = 'online • Direct P2P Encrypted';
+    } else if (hasRelay) {
+      livePeerStatusText.textContent = 'online • Fast Relay Encrypted';
+    } else {
+      livePeerStatusText.textContent = 'connecting • Handshaking...';
+    }
+  }
+  setInterval(updateLivePeerStatus, 1000);
 
   function sendPacket(packet) {
     if (!packet) return false;
