@@ -85,10 +85,11 @@ document.addEventListener('DOMContentLoaded', () => {
       { urls: 'stun:stun.l.google.com:19302' },
       { urls: 'stun:stun1.l.google.com:19302' },
       { urls: 'stun:stun2.l.google.com:19302' },
-      { urls: 'stun:stun.cloudflare.com:3478' }
+      { urls: 'stun:stun.cloudflare.com:3478' },
+      { urls: 'stun:stun.nextcloud.com:3478' },
+      { urls: 'stun:relay.metered.ca:80' }
     ],
-    iceCandidatePoolSize: 0,
-    bundlePolicy: 'max-bundle'
+    iceCandidatePoolSize: 2
   };
 
   function generateCrockfordCode() {
@@ -1369,17 +1370,61 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     }
 
+    // 1. Immediate ready check
     if (conn.open || (conn.dataChannel && conn.dataChannel.readyState === 'open')) {
       handleSenderOpen();
-    } else {
-      conn.on('open', handleSenderOpen);
-      if (conn.dataChannel) {
+    }
+
+    // 2. PeerJS open event
+    conn.on('open', handleSenderOpen);
+
+    // 3. Direct DataChannel listener
+    if (conn.dataChannel) {
+      if (conn.dataChannel.readyState === 'open') {
+        handleSenderOpen();
+      } else {
         conn.dataChannel.addEventListener('open', handleSenderOpen, { once: true });
       }
     }
 
+    // 4. Native RTCPeerConnection listeners
+    if (conn.peerConnection) {
+      conn.peerConnection.addEventListener('datachannel', (ev) => {
+        const dc = ev.channel;
+        if (dc) {
+          if (dc.readyState === 'open') handleSenderOpen();
+          else dc.addEventListener('open', handleSenderOpen, { once: true });
+        }
+      });
+      conn.peerConnection.addEventListener('iceconnectionstatechange', () => {
+        const state = conn.peerConnection.iceConnectionState;
+        console.log('[LynqDrop Sender] ICE state:', state);
+        if (state === 'connected' || state === 'completed') {
+          setTimeout(handleSenderOpen, 50);
+        } else if (state === 'failed') {
+          if (roomStatusLabel) roomStatusLabel.textContent = 'Direct P2P unreachable. Check network/NAT.';
+        }
+      });
+    }
+
+    // 5. Active poller to defeat missed asynchronous event triggers
+    const senderPoll = setInterval(() => {
+      if (senderOpenHandled) {
+        clearInterval(senderPoll);
+        return;
+      }
+      if (conn.open || (conn.dataChannel && conn.dataChannel.readyState === 'open')) {
+        clearInterval(senderPoll);
+        handleSenderOpen();
+      }
+    }, 150);
+    setTimeout(() => clearInterval(senderPoll), 8000);
+
     conn.on('data', async (data) => {
       if (!data) return;
+
+      // Receiving ANY data packet is absolute proof the DataChannel is open
+      handleSenderOpen();
 
       if (data.type === 'RECEIVER_HELLO') {
         console.log('[LynqDrop] Received RECEIVER_HELLO:', data.receiver);
@@ -1391,10 +1436,16 @@ document.addEventListener('DOMContentLoaded', () => {
             livePeerStatusText.textContent = `⚡ ${myDevice.name} (${myDevice.platform}) ⟷ ${data.receiver.name} (${data.receiver.platform})`;
           }
         }
+        const requiresPin = roomPinRequired && !!roomPinValue;
         conn.send({
           type: 'SENDER_ACK',
-          sender: myDevice
+          sender: myDevice,
+          requiresPin
         });
+
+        if (!requiresPin) {
+          openLiveRoom(currentRoomCode, true);
+        }
       } else if (data.type === 'VERIFY_PIN') {
         const inputPin = (data.pin || '').trim();
         if (inputPin === roomPinValue) {
@@ -1605,7 +1656,7 @@ document.addEventListener('DOMContentLoaded', () => {
       receiverOpenHandled = true;
       console.log('[LynqDrop Receiver] DataChannel OPEN with sender');
       if (receiveStatusBox) receiveStatusBox.style.display = 'inline-flex';
-      if (receiveStatusText) receiveStatusText.textContent = 'Connected! Handshaking with sender...';
+      if (receiveStatusText) receiveStatusText.textContent = 'Connected! Entering room...';
       if (roomInputContainer) roomInputContainer.style.display = 'none';
       if (receiveHeadingText) receiveHeadingText.textContent = `Connected to Room ${roomCode}`;
 
@@ -1618,19 +1669,68 @@ document.addEventListener('DOMContentLoaded', () => {
       } catch (err) {
         console.warn('conn.send RECEIVER_HELLO error:', err);
       }
+
+      // Seamless instant transition to live room if not PIN-gated
+      if (!roomPinRequired) {
+        openLiveRoom(currentRoomCode, false);
+      }
     }
 
+    // 1. Immediate ready check
     if (conn.open || (conn.dataChannel && conn.dataChannel.readyState === 'open')) {
       handleReceiverOpen();
-    } else {
-      conn.on('open', handleReceiverOpen);
-      if (conn.dataChannel) {
+    }
+
+    // 2. PeerJS open event
+    conn.on('open', handleReceiverOpen);
+
+    // 3. Direct DataChannel listener
+    if (conn.dataChannel) {
+      if (conn.dataChannel.readyState === 'open') {
+        handleReceiverOpen();
+      } else {
         conn.dataChannel.addEventListener('open', handleReceiverOpen, { once: true });
       }
     }
 
+    // 4. Native RTCPeerConnection listeners
+    if (conn.peerConnection) {
+      conn.peerConnection.addEventListener('datachannel', (ev) => {
+        const dc = ev.channel;
+        if (dc) {
+          if (dc.readyState === 'open') handleReceiverOpen();
+          else dc.addEventListener('open', handleReceiverOpen, { once: true });
+        }
+      });
+      conn.peerConnection.addEventListener('iceconnectionstatechange', () => {
+        const state = conn.peerConnection.iceConnectionState;
+        console.log('[LynqDrop Receiver] ICE state:', state);
+        if (state === 'connected' || state === 'completed') {
+          setTimeout(handleReceiverOpen, 50);
+        } else if (state === 'failed') {
+          if (receiveStatusText) receiveStatusText.textContent = 'Direct P2P unreachable. Retrying...';
+        }
+      });
+    }
+
+    // 5. Active poller to catch missed events
+    const recvPoll = setInterval(() => {
+      if (receiverOpenHandled) {
+        clearInterval(recvPoll);
+        return;
+      }
+      if (conn.open || (conn.dataChannel && conn.dataChannel.readyState === 'open')) {
+        clearInterval(recvPoll);
+        handleReceiverOpen();
+      }
+    }, 150);
+    setTimeout(() => clearInterval(recvPoll), 8000);
+
     conn.on('data', async (msg) => {
       if (!msg) return;
+
+      // Receiving ANY data packet is proof the connection is open
+      handleReceiverOpen();
 
       if (msg.type === 'HANDSHAKE' || msg.type === 'SENDER_ACK') {
         console.log('[LynqDrop Receiver] Received handshake from sender:', msg);
@@ -1642,27 +1742,25 @@ document.addEventListener('DOMContentLoaded', () => {
           }
         }
 
-        if (msg.type === 'HANDSHAKE') {
-          if (msg.requiresPin) {
-            // PIN protection challenge
-            if (receiveStatusBox) receiveStatusBox.style.display = 'none';
-    const platformCard = document.getElementById('platform-connection-card');
-    if (platformCard) platformCard.style.display = 'none';
-            if (pinChallengeCard) pinChallengeCard.style.display = 'block';
-            if (inputVerifyPin) inputVerifyPin.focus();
+        if (msg.requiresPin) {
+          // PIN protection challenge
+          if (receiveStatusBox) receiveStatusBox.style.display = 'none';
+          const platformCard = document.getElementById('platform-connection-card');
+          if (platformCard) platformCard.style.display = 'none';
+          if (pinChallengeCard) pinChallengeCard.style.display = 'block';
+          if (inputVerifyPin) inputVerifyPin.focus();
 
-            if (btnSubmitPin) {
-              btnSubmitPin.onclick = () => {
-                const entered = (inputVerifyPin?.value || '').trim();
-                if (!entered) return;
-                if (pinErrorText) pinErrorText.style.display = 'none';
-                conn.send({ type: 'VERIFY_PIN', pin: entered });
-              };
-            }
-          } else {
-            // Instant Live Room transition
-            openLiveRoom(currentRoomCode, false);
+          if (btnSubmitPin) {
+            btnSubmitPin.onclick = () => {
+              const entered = (inputVerifyPin?.value || '').trim();
+              if (!entered) return;
+              if (pinErrorText) pinErrorText.style.display = 'none';
+              conn.send({ type: 'VERIFY_PIN', pin: entered });
+            };
           }
+        } else {
+          // Instant Live Room transition
+          openLiveRoom(currentRoomCode, false);
         }
       } else if (msg.type === 'PIN_OK') {
         if (pinChallengeCard) pinChallengeCard.style.display = 'none';
