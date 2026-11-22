@@ -2240,11 +2240,19 @@ footer.site-footer {
 
 body.in-live-room {
   overflow: hidden !important;
+  position: fixed !important;
+  inset: 0 !important;
+  top: 0 !important;
+  left: 0 !important;
+  right: 0 !important;
+  bottom: 0 !important;
   width: 100vw !important;
+  width: 100% !important;
   height: 100dvh !important;
-  height: 100vh !important;
+  height: 100% !important;
   margin: 0 !important;
   padding: 0 !important;
+  background: #0b141a !important;
 }
 
 body.in-live-room .site-header,
@@ -2259,32 +2267,26 @@ body.in-live-room .faq-section,
 body.in-live-room .tech-specs,
 body.in-live-room .brand-header,
 body.in-live-room .subview-bar,
+body.in-live-room .workspace-section,
+body.in-live-room #sharing-hub,
+body.in-live-room .workspace-card,
 body.in-live-room #subview-card-send,
 body.in-live-room #subview-card-receive,
 body.in-live-room #subview-card-text {
   display: none !important;
 }
 
-body.in-live-room .sharing-hub {
-  margin: 0 !important;
-  padding: 0 !important;
-  max-width: 100vw !important;
-  width: 100vw !important;
-  height: 100dvh !important;
-  border: none !important;
-  box-shadow: none !important;
-  background: transparent !important;
-}
-
 body.in-live-room #p2p-live-room {
   position: fixed !important;
+  inset: 0 !important;
   top: 0 !important;
   left: 0 !important;
   right: 0 !important;
   bottom: 0 !important;
   width: 100vw !important;
+  width: 100% !important;
   height: 100dvh !important;
-  height: 100vh !important;
+  height: 100% !important;
   max-width: 100vw !important;
   max-height: 100dvh !important;
   margin: 0 !important;
@@ -2296,6 +2298,8 @@ body.in-live-room #p2p-live-room {
   flex-direction: column !important;
   background: #0b141a !important;
   box-shadow: none !important;
+  box-sizing: border-box !important;
+  overflow: hidden !important;
 }
 
 body.in-live-room .live-room-topbar,
@@ -2304,6 +2308,8 @@ body.in-live-room .wa-topbar {
   top: 0 !important;
   left: 0 !important;
   right: 0 !important;
+  width: 100% !important;
+  max-width: 100vw !important;
   height: 56px !important;
   min-height: 56px !important;
   padding: 0 10px !important;
@@ -2315,16 +2321,24 @@ body.in-live-room .wa-topbar {
   justify-content: space-between !important;
   z-index: 100 !important;
   flex-shrink: 0 !important;
-  gap: 8px !important;
-  box-sizing: content-box !important;
+  gap: 6px !important;
+  box-sizing: border-box !important;
 }
 
 body.in-live-room .peer-header-identity {
   display: flex !important;
   align-items: center !important;
   gap: 8px !important;
-  flex: 1 !important;
+  flex: 1 1 auto !important;
   min-width: 0 !important;
+  overflow: hidden !important;
+}
+
+body.in-live-room .peer-avatar-circle {
+  width: 38px !important;
+  height: 38px !important;
+  min-width: 38px !important;
+  font-size: 1.15rem !important;
 }
 
 body.in-live-room .peer-header-details {
@@ -2332,6 +2346,7 @@ body.in-live-room .peer-header-details {
   flex-direction: column !important;
   min-width: 0 !important;
   flex: 1 !important;
+  overflow: hidden !important;
 }
 
 body.in-live-room .peer-header-name {
@@ -2341,7 +2356,7 @@ body.in-live-room .peer-header-name {
   white-space: nowrap !important;
   overflow: hidden !important;
   text-overflow: ellipsis !important;
-  max-width: 140px !important;
+  max-width: 150px !important;
 }
 
 body.in-live-room .peer-header-status {
@@ -2350,7 +2365,7 @@ body.in-live-room .peer-header-status {
   white-space: nowrap !important;
   overflow: hidden !important;
   text-overflow: ellipsis !important;
-  max-width: 150px !important;
+  max-width: 160px !important;
 }
 
 body.in-live-room .wa-topbar-actions {
@@ -2398,21 +2413,55 @@ body.in-live-room .chat-feed {
   gap: 8px !important;
 }
 
-body.in-live-room .chat-input-bar {
+body.in-live-room .chat-input-bar,
+body.in-live-room .wa-input-bar {
   flex-shrink: 0 !important;
   position: sticky !important;
   bottom: 0 !important;
   left: 0 !important;
   right: 0 !important;
+  width: 100% !important;
+  max-width: 100vw !important;
   padding: 8px 8px !important;
   padding-bottom: max(8px, env(safe-area-inset-bottom, 8px)) !important;
   background: #202c33 !important;
   border-top: 1px solid rgba(255, 255, 255, 0.06) !important;
-  min-height: 52px !important;
+  min-height: 54px !important;
   gap: 6px !important;
   display: flex !important;
   align-items: center !important;
   z-index: 100 !important;
+  box-sizing: border-box !important;
+}
+
+body.in-live-room .chat-input-bar input#chat-text-input,
+body.in-live-room .chat-input-bar .chat-textbox,
+body.in-live-room .chat-input-bar .wa-textbox {
+  flex: 1 1 0% !important;
+  min-width: 0 !important;
+  width: 0 !important;
+  height: 40px !important;
+  border-radius: 20px !important;
+  padding: 0 14px !important;
+  background: #2a3942 !important;
+  color: #d1d7db !important;
+  border: none !important;
+  font-size: 0.95rem !important;
+  outline: none !important;
+  box-sizing: border-box !important;
+}
+
+body.in-live-room .chat-input-bar .btn-chat-icon,
+body.in-live-room .chat-input-bar .btn-chat-send {
+  flex-shrink: 0 !important;
+  width: 38px !important;
+  height: 38px !important;
+  min-width: 38px !important;
+  min-height: 38px !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  box-sizing: border-box !important;
 }
 
 @media (max-width: 640px) {
@@ -2424,6 +2473,21 @@ body.in-live-room .chat-input-bar {
 @media (min-width: 641px) {
   body.in-live-room .btn-leave-room-mobile {
     display: none !important;
+  }
+}
+
+@media (max-width: 480px) {
+  body.in-live-room .peer-header-name {
+    max-width: 110px !important;
+    font-size: 0.88rem !important;
+  }
+  body.in-live-room .peer-header-status {
+    max-width: 110px !important;
+    font-size: 0.68rem !important;
+  }
+  body.in-live-room .room-identity-pill {
+    padding: 3px 6px !important;
+    font-size: 0.72rem !important;
   }
 }
 
@@ -2921,3 +2985,422 @@ body.in-live-room .chat-input-bar {
   background: #06cf9c;
 }
 
+
+
+/* =========================================================================
+   In-App Image / Photo Lightbox Preview Modal
+   ========================================================================= */
+.image-lightbox-modal {
+  position: fixed !important;
+  inset: 0 !important;
+  top: 0 !important;
+  left: 0 !important;
+  right: 0 !important;
+  bottom: 0 !important;
+  width: 100vw !important;
+  height: 100dvh !important;
+  z-index: 10000000 !important;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  box-sizing: border-box;
+}
+
+.lightbox-overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.92);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  z-index: 1;
+}
+
+.lightbox-container {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100%;
+}
+
+.lightbox-header {
+  height: 56px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 16px;
+  padding-top: env(safe-area-inset-top, 0px);
+  background: rgba(20, 20, 20, 0.75);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.lightbox-file-info {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  max-width: 60%;
+}
+
+.lightbox-filename {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: #fff;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.lightbox-filesize {
+  font-size: 0.75rem;
+  color: #8696a0;
+}
+
+.lightbox-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.btn-lightbox-action {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: #00a884;
+  color: #fff;
+  text-decoration: none;
+  padding: 6px 14px;
+  border-radius: 8px;
+  font-size: 0.82rem;
+  font-weight: 600;
+  transition: background 0.2s;
+}
+
+.btn-lightbox-action:hover {
+  background: #06cf9c;
+}
+
+.btn-lightbox-close {
+  background: transparent;
+  border: none;
+  color: #fff;
+  font-size: 28px;
+  line-height: 1;
+  padding: 0 6px;
+  cursor: pointer;
+  opacity: 0.8;
+  transition: opacity 0.2s;
+}
+
+.btn-lightbox-close:hover {
+  opacity: 1;
+}
+
+.lightbox-body {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  overflow: hidden;
+}
+
+.lightbox-image {
+  max-width: 95vw;
+  max-height: calc(100dvh - 90px);
+  object-fit: contain;
+  border-radius: 8px;
+  box-shadow: 0 16px 50px rgba(0, 0, 0, 0.9);
+}
+
+/* =========================================================================
+   In-App PDF Document Viewer Modal
+   ========================================================================= */
+.pdf-viewer-modal {
+  position: fixed !important;
+  inset: 0 !important;
+  top: 0 !important;
+  left: 0 !important;
+  right: 0 !important;
+  bottom: 0 !important;
+  width: 100vw !important;
+  height: 100dvh !important;
+  z-index: 10000000 !important;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 12px;
+  box-sizing: border-box;
+}
+
+.pdf-modal-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.85);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  z-index: 1;
+}
+
+.pdf-modal-card {
+  position: relative;
+  z-index: 2;
+  width: 96vw;
+  max-width: 940px;
+  height: 92dvh;
+  max-height: 880px;
+  background: #1f2c34;
+  border-radius: 14px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.85);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.pdf-modal-header {
+  height: 52px;
+  background: #202c33;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 14px;
+  flex-shrink: 0;
+}
+
+.pdf-header-title-wrap {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  overflow: hidden;
+  max-width: 60%;
+}
+
+.pdf-header-badge {
+  background: #ef4444;
+  color: #fff;
+  font-size: 0.7rem;
+  font-weight: 700;
+  padding: 2px 6px;
+  border-radius: 4px;
+  letter-spacing: 0.5px;
+}
+
+.pdf-header-filename {
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: #e9edef;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.pdf-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.btn-pdf-action {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: #2a3942;
+  color: #d1d7db;
+  text-decoration: none;
+  padding: 6px 12px;
+  border-radius: 6px;
+  font-size: 0.78rem;
+  font-weight: 500;
+  transition: all 0.2s;
+}
+
+.btn-pdf-action:hover {
+  background: #00a884;
+  color: #fff;
+}
+
+.btn-pdf-close {
+  background: transparent;
+  border: none;
+  color: #8696a0;
+  font-size: 26px;
+  line-height: 1;
+  padding: 0 6px;
+  cursor: pointer;
+  transition: color 0.2s;
+}
+
+.btn-pdf-close:hover {
+  color: #fff;
+}
+
+.pdf-modal-body {
+  flex: 1;
+  width: 100%;
+  height: 100%;
+  background: #525659;
+  overflow: hidden;
+  position: relative;
+}
+
+.pdf-modal-body iframe {
+  width: 100%;
+  height: 100%;
+  border: none;
+  display: block;
+}
+
+/* =========================================================================
+   Chat Media Cards (Photo, PDF, Video)
+   ========================================================================= */
+.photo-thumb-wrap {
+  position: relative;
+  cursor: pointer;
+  border-radius: 8px;
+  overflow: hidden;
+  background: #111b21;
+}
+
+.photo-thumb-wrap:hover .photo-expand-badge {
+  opacity: 1;
+}
+
+.photo-expand-badge {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  background: rgba(0, 0, 0, 0.65);
+  backdrop-filter: blur(6px);
+  color: #fff;
+  font-size: 0.72rem;
+  padding: 4px 8px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  opacity: 0.9;
+  transition: opacity 0.2s;
+}
+
+.photo-card-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.btn-preview-inline {
+  background: rgba(0, 168, 132, 0.2);
+  border: 1px solid rgba(0, 168, 132, 0.4);
+  color: #00a884;
+  border-radius: 6px;
+  padding: 3px 8px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.btn-preview-inline:hover {
+  background: #00a884;
+  color: #fff;
+}
+
+/* WhatsApp PDF Document Card */
+.chat-pdf-card {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  background: rgba(17, 27, 33, 0.5);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 10px;
+  padding: 10px 12px;
+  max-width: 320px;
+  min-width: 220px;
+}
+
+.pdf-card-top {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.pdf-card-icon {
+  position: relative;
+  width: 36px;
+  height: 36px;
+  background: rgba(239, 68, 68, 0.15);
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.pdf-badge-tag {
+  position: absolute;
+  bottom: -2px;
+  right: -2px;
+  background: #ef4444;
+  color: #fff;
+  font-size: 0.55rem;
+  font-weight: 800;
+  padding: 1px 3px;
+  border-radius: 3px;
+  line-height: 1;
+}
+
+.pdf-card-details {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  min-width: 0;
+  flex: 1;
+}
+
+.pdf-card-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  padding-top: 6px;
+  border-top: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.btn-pdf-preview {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: #00a884;
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  padding: 5px 10px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.btn-pdf-preview:hover {
+  background: #06cf9c;
+}
+
+/* WhatsApp Video Card */
+.chat-video-card {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-width: 320px;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.chat-inline-video {
+  width: 100%;
+  max-height: 240px;
+  border-radius: 6px;
+  background: #000;
+  outline: none;
+}

@@ -522,6 +522,90 @@ document.addEventListener('DOMContentLoaded', () => {
       });
     }
 
+    // Image Lightbox Preview Modal Elements
+    const modalLightbox = document.getElementById('image-lightbox-modal');
+    const lightboxImg = document.getElementById('lightbox-img');
+    const lightboxFilename = document.getElementById('lightbox-filename');
+    const lightboxFilesize = document.getElementById('lightbox-filesize');
+    const lightboxDownloadBtn = document.getElementById('lightbox-download-btn');
+    const btnCloseLightbox = document.getElementById('btn-close-lightbox');
+    const lightboxBackdrop = document.getElementById('lightbox-backdrop');
+
+    function closeImageLightbox() {
+      if (modalLightbox) modalLightbox.style.display = 'none';
+      if (lightboxImg) lightboxImg.src = '';
+    }
+
+    window.lynqOpenLightbox = function(srcUrl, fileName, fileSize) {
+      if (!modalLightbox || !lightboxImg) return;
+      lightboxImg.src = srcUrl;
+      if (lightboxFilename) lightboxFilename.textContent = fileName || 'Image';
+      if (lightboxFilesize) lightboxFilesize.textContent = fileSize || '';
+      if (lightboxDownloadBtn) {
+        lightboxDownloadBtn.href = srcUrl;
+        lightboxDownloadBtn.download = fileName || 'image.jpg';
+      }
+      modalLightbox.style.display = 'flex';
+    };
+
+    if (btnCloseLightbox && !btnCloseLightbox._initialized) {
+      btnCloseLightbox._initialized = true;
+      btnCloseLightbox.addEventListener('click', closeImageLightbox);
+    }
+    if (lightboxBackdrop && !lightboxBackdrop._initialized) {
+      lightboxBackdrop._initialized = true;
+      lightboxBackdrop.addEventListener('click', closeImageLightbox);
+    }
+
+    // PDF Viewer Modal Elements
+    const modalPdf = document.getElementById('pdf-viewer-modal');
+    const pdfViewerFrame = document.getElementById('pdf-viewer-frame');
+    const pdfModalFilename = document.getElementById('pdf-modal-filename');
+    const pdfModalOpenTab = document.getElementById('pdf-modal-open-tab');
+    const pdfModalDownloadBtn = document.getElementById('pdf-modal-download-btn');
+    const btnClosePdfModal = document.getElementById('btn-close-pdf-modal');
+    const pdfModalBackdrop = document.getElementById('pdf-modal-backdrop');
+
+    function closePdfViewer() {
+      if (modalPdf) modalPdf.style.display = 'none';
+      if (pdfViewerFrame) pdfViewerFrame.src = '';
+    }
+
+    window.lynqOpenPdf = function(srcUrl, fileName) {
+      if (!modalPdf || !pdfViewerFrame) return;
+      pdfViewerFrame.src = srcUrl;
+      if (pdfModalFilename) pdfModalFilename.textContent = fileName || 'Document.pdf';
+      if (pdfModalDownloadBtn) {
+        pdfModalDownloadBtn.href = srcUrl;
+        pdfModalDownloadBtn.download = fileName || 'document.pdf';
+      }
+      if (pdfModalOpenTab) {
+        pdfModalOpenTab.href = srcUrl;
+      }
+      modalPdf.style.display = 'flex';
+    };
+
+    if (btnClosePdfModal && !btnClosePdfModal._initialized) {
+      btnClosePdfModal._initialized = true;
+      btnClosePdfModal.addEventListener('click', closePdfViewer);
+    }
+    if (pdfModalBackdrop && !pdfModalBackdrop._initialized) {
+      pdfModalBackdrop._initialized = true;
+      pdfModalBackdrop.addEventListener('click', closePdfViewer);
+    }
+
+    // Global ESC key listener to dismiss preview modals
+    if (!window._lynqModalEscInitialized) {
+      window._lynqModalEscInitialized = true;
+      document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') {
+          closeImageLightbox();
+          closePdfViewer();
+          closeDesktopWebcam();
+        }
+      });
+    }
+
     // Direct 1-tap Camera Button
     if (btnChatCamera && chatCameraInput && !btnChatCamera._initialized) {
       btnChatCamera._initialized = true;
@@ -691,6 +775,18 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
+  const activeMediaMap = new Map();
+  window.lynqOpenLightboxById = function(mediaId) {
+    const item = activeMediaMap.get(mediaId);
+    if (!item) return;
+    window.lynqOpenLightbox(item.url, item.name, item.size);
+  };
+  window.lynqOpenPdfById = function(mediaId) {
+    const item = activeMediaMap.get(mediaId);
+    if (!item) return;
+    window.lynqOpenPdf(item.url, item.name);
+  };
+
   function appendChatFileCard({ sender, file, isMine, downloadUrl, verified, rawBlob, transferId }) {
     if (!chatFeed) return;
     const bubble = document.createElement('div');
@@ -702,10 +798,22 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const fileName = file.name || 'File';
     const isVoice = (file.isVoiceNote || fileName.toLowerCase().includes('voice-note') || (file.mimeType && file.mimeType.startsWith('audio/')) || fileName.match(/\.(webm|m4a|mp3|ogg|wav)$/i));
-    const isImage = (file.mimeType && file.mimeType.startsWith('image/')) || fileName.match(/\.(jpg|jpeg|png|webp|gif|svg)$/i);
+    const isImage = (file.mimeType && file.mimeType.startsWith('image/')) || fileName.match(/\.(jpg|jpeg|png|webp|gif|svg|bmp|avif)$/i);
+    const isPdf = (file.mimeType === 'application/pdf') || fileName.toLowerCase().endsWith('.pdf');
+    const isVideo = (file.mimeType && file.mimeType.startsWith('video/')) || fileName.match(/\.(mp4|webm|mov|mkv)$/i);
+
+    const srcUrl = downloadUrl || (rawBlob ? URL.createObjectURL(rawBlob) : null);
+    const mediaId = 'med_' + Math.random().toString(36).slice(2, 9);
+    if (srcUrl) {
+      activeMediaMap.set(mediaId, {
+        url: srcUrl,
+        name: fileName,
+        size: formatBytes(file.size),
+        blob: rawBlob
+      });
+    }
 
     let contentHtml = '';
-    const srcUrl = downloadUrl || (rawBlob ? URL.createObjectURL(rawBlob) : null);
 
     if (isVoice && srcUrl) {
       contentHtml = `
@@ -716,11 +824,52 @@ document.addEventListener('DOMContentLoaded', () => {
       `;
     } else if (isImage && srcUrl) {
       contentHtml = `
-        <div class="chat-photo-card">
-          <img src="${srcUrl}" alt="${escapeHtml(fileName)}" class="chat-thumbnail-img chat-photo-thumb" onclick="window.open('${srcUrl}', '_blank')" />
+        <div class="chat-photo-card" data-media-id="${mediaId}">
+          <div class="photo-thumb-wrap" onclick="window.lynqOpenLightboxById('${mediaId}')" title="Tap to preview image">
+            <img src="${srcUrl}" alt="${escapeHtml(fileName)}" class="chat-thumbnail-img chat-photo-thumb" loading="lazy" />
+            <div class="photo-expand-badge">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.5"><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/></svg>
+              <span>Preview</span>
+            </div>
+          </div>
           <div class="photo-overlay-info">
-            <span class="chat-file-name" style="font-size:0.75rem; color:#8696a0;">${escapeHtml(fileName)} · ${formatBytes(file.size)}</span>
-            ${downloadUrl ? `<a href="${downloadUrl}" download="${escapeHtml(fileName)}" class="btn-file-download">Save</a>` : `<span class="file-send-status" style="font-size:0.75rem; color:#8696a0;">Sending...</span>`}
+            <span class="chat-file-name" title="${escapeHtml(fileName)}">${escapeHtml(fileName)} · ${formatBytes(file.size)}</span>
+            <div class="photo-card-actions">
+              <button type="button" class="btn-preview-inline" onclick="window.lynqOpenLightboxById('${mediaId}')" title="Preview Photo">👁️ View</button>
+              ${downloadUrl ? `<a href="${downloadUrl}" download="${escapeHtml(fileName)}" class="btn-file-download" title="Download">Save</a>` : `<span class="file-send-status">Sending...</span>`}
+            </div>
+          </div>
+        </div>
+      `;
+    } else if (isPdf && srcUrl) {
+      contentHtml = `
+        <div class="chat-pdf-card" data-media-id="${mediaId}">
+          <div class="pdf-card-top">
+            <div class="pdf-card-icon">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#ef4444" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+              <span class="pdf-badge-tag">PDF</span>
+            </div>
+            <div class="pdf-card-details">
+              <div class="chat-file-name" title="${escapeHtml(fileName)}">${escapeHtml(fileName)}</div>
+              <div class="chat-file-size">${formatBytes(file.size)} ${verified ? '· Verified ✓' : ''}</div>
+            </div>
+          </div>
+          <div class="pdf-card-actions">
+            <button type="button" class="btn-pdf-preview" onclick="window.lynqOpenPdfById('${mediaId}')" title="Read PDF Document">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+              <span>Read PDF</span>
+            </button>
+            ${downloadUrl ? `<a href="${downloadUrl}" download="${escapeHtml(fileName)}" class="btn-file-download" title="Download">Save</a>` : `<span class="file-send-status">Sending...</span>`}
+          </div>
+        </div>
+      `;
+    } else if (isVideo && srcUrl) {
+      contentHtml = `
+        <div class="chat-video-card">
+          <video controls playsinline preload="metadata" src="${srcUrl}" class="chat-inline-video"></video>
+          <div class="photo-overlay-info">
+            <span class="chat-file-name" title="${escapeHtml(fileName)}">${escapeHtml(fileName)} · ${formatBytes(file.size)}</span>
+            ${downloadUrl ? `<a href="${downloadUrl}" download="${escapeHtml(fileName)}" class="btn-file-download">Save</a>` : `<span class="file-send-status">Sending...</span>`}
           </div>
         </div>
       `;
@@ -732,7 +881,7 @@ document.addEventListener('DOMContentLoaded', () => {
             <div class="chat-file-name" title="${escapeHtml(fileName)}">${escapeHtml(fileName)}</div>
             <div class="chat-file-size">${formatBytes(file.size)} ${verified ? '· Verified ✓' : ''}</div>
           </div>
-          ${downloadUrl ? `<a href="${downloadUrl}" download="${escapeHtml(fileName)}" class="btn-file-download">Save</a>` : `<span class="file-send-status" style="font-size:0.75rem; color:#8696a0;">Sending...</span>`}
+          ${downloadUrl ? `<a href="${downloadUrl}" download="${escapeHtml(fileName)}" class="btn-file-download">Save</a>` : `<span class="file-send-status">Sending...</span>`}
         </div>
       `;
     }
@@ -992,8 +1141,15 @@ document.addEventListener('DOMContentLoaded', () => {
           name: currentSinkMeta.name
         });
 
-        // Auto trigger download for frictionless mobile & desktop receive (skip voice notes from auto-downloading)
-        if (res.url && !res.directSaved && !currentSinkMeta.isVoiceNote) {
+        // Auto trigger download only for non-previewable files (photos, videos, PDFs and audio are previewed in-app directly)
+        const isMediaOrDoc = (currentSinkMeta.mimeType && (
+          currentSinkMeta.mimeType.startsWith('image/') ||
+          currentSinkMeta.mimeType.startsWith('video/') ||
+          currentSinkMeta.mimeType.startsWith('audio/') ||
+          currentSinkMeta.mimeType === 'application/pdf'
+        )) || currentSinkMeta.name.match(/\.(jpg|jpeg|png|webp|gif|svg|pdf|mp4|webm|mov|m4a|mp3|ogg|wav)$/i);
+
+        if (res.url && !res.directSaved && !isMediaOrDoc) {
           const a = document.createElement('a');
           a.href = res.url;
           a.download = currentSinkMeta.name;

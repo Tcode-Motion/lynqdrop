@@ -363,178 +363,6 @@
           </div>
         </div>
 
-        <!-- =================================================================== -->
-        <!-- LIVE TWO-WAY P2P WHATSAPP-STYLE CHAT & FILE DROP ROOM               -->
-        <!-- =================================================================== -->
-        <div id="p2p-live-room" class="p2p-live-room whatsapp-chat-theme" style="display: none;">
-          <!-- WhatsApp Top Room Header -->
-          <div class="live-room-topbar wa-topbar">
-            <div class="peer-header-identity">
-              <button type="button" class="btn-leave-room-mobile" id="btn-leave-live-room-arrow" title="Back / Exit Room">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
-              </button>
-              <div class="peer-avatar-circle" id="peer-avatar-circle">
-                <span id="peer-avatar-icon">📱</span>
-                <span class="live-status-dot"></span>
-              </div>
-              <div class="peer-header-details">
-                <div class="peer-header-name" id="live-peer-name">Connecting...</div>
-                <div class="peer-header-status" id="live-peer-status-text">online • Direct P2P Encrypted</div>
-              </div>
-            </div>
-
-            <div class="wa-topbar-actions">
-              <div class="room-identity-pill" id="live-room-badge" title="Tap to Copy Room Code">
-                <span id="live-room-code-tag" class="room-code-tag">LD-------</span>
-                <button type="button" class="btn-icon-copy" id="btn-live-copy-link" title="Copy Room Invite Link">
-                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
-                </button>
-              </div>
-              <button type="button" class="btn-leave-room" id="btn-leave-live-room" title="Disconnect & Exit Room">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
-                <span>Exit</span>
-              </button>
-            </div>
-          </div>
-
-          <!-- Chat & File Stream Window -->
-          <div class="chat-feed-container wa-chat-wallpaper" id="chat-feed-container">
-            <div class="chat-feed wa-feed" id="chat-messages-feed">
-              <div class="chat-system-msg wa-system-pill">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
-                <span>🔒 Messages, voice notes, photos &amp; files are end-to-end encrypted with zero server storage.</span>
-              </div>
-            </div>
-            
-            <!-- Live Inline File Drop Overlay for the chat feed -->
-            <div id="chat-drag-overlay" class="chat-drag-overlay" style="display: none;">
-              <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
-              <span>Drop files here to send instantly</span>
-            </div>
-          </div>
-
-          <!-- Inline Active Transfer Progress (Floating inside chat) -->
-          <div id="live-transfer-bar" class="live-transfer-bar" style="display: none;">
-            <div class="transfer-info-mini">
-              <span id="live-transfer-label" class="transfer-label-mini">Transferring files...</span>
-              <span id="live-transfer-stats" class="transfer-stats-mini">0% · 0.0 MB/s</span>
-            </div>
-            <div class="transfer-track-mini">
-              <div id="live-transfer-fill" class="transfer-fill-mini" style="width: 0%;"></div>
-            </div>
-          </div>
-
-          <!-- WhatsApp Media Attachment Popup Menu -->
-          <div class="chat-attach-popup" id="chat-attach-popup" style="display: none;">
-            <button type="button" class="attach-popup-item" id="popup-item-camera" title="Take Photo with Camera">
-              <span class="popup-icon-wrap" style="background: linear-gradient(135deg, #ec4899, #f43f5e);">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
-              </span>
-              <span>Camera</span>
-            </button>
-            <button type="button" class="attach-popup-item" id="popup-item-gallery" title="Choose Photos &amp; Videos from Device">
-              <span class="popup-icon-wrap" style="background: linear-gradient(135deg, #a855f7, #6366f1);">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
-              </span>
-              <span>Photos</span>
-            </button>
-            <button type="button" class="attach-popup-item" id="popup-item-file" title="Choose Documents &amp; Files from Device">
-              <span class="popup-icon-wrap" style="background: linear-gradient(135deg, #0284c7, #2563eb);">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
-              </span>
-              <span>Document</span>
-            </button>
-            <button type="button" class="attach-popup-item" id="popup-item-folder" title="Choose Folder from Device">
-              <span class="popup-icon-wrap" style="background: linear-gradient(135deg, #0d9488, #10b981);">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
-              </span>
-              <span>Folder</span>
-            </button>
-          </div>
-
-          <!-- Active Voice Recording Bar (When mic is recording) -->
-          <div class="voice-recording-bar" id="live-voice-recorder-bar" style="display: none;">
-            <div class="recording-indicator">
-              <span class="rec-pulse-dot"></span>
-              <span class="rec-timer" id="voice-timer-text">0:00</span>
-            </div>
-            <div class="rec-status-msg">Recording Voice Note...</div>
-            <div class="rec-actions">
-              <button type="button" class="btn-rec-cancel" id="btn-cancel-voice" title="Discard Voice Note">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
-              </button>
-              <button type="button" class="btn-rec-send" id="btn-send-voice" title="Send Voice Note">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
-              </button>
-            </div>
-          </div>
-
-          <!-- WhatsApp Chat Input Bar -->
-          <div class="chat-input-bar wa-input-bar" id="chat-input-bar">
-            <!-- Hidden device input triggers -->
-            <input type="file" id="chat-camera-input" accept="image/*" capture="environment" style="display: none;">
-            <input type="file" id="chat-gallery-input" accept="image/*,video/*" multiple style="display: none;">
-            <input type="file" id="chat-file-input" multiple style="display: none;">
-            <input type="file" id="chat-folder-input" webkitdirectory directory multiple style="display: none;">
-
-            <!-- Direct 1-tap Camera Button -->
-            <button type="button" class="btn-chat-icon" id="btn-chat-camera" title="Take photo with camera">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
-            </button>
-
-            <!-- Attachment Menu Button -->
-            <button type="button" class="btn-chat-icon" id="btn-chat-attach-menu" title="Attach photos, files, or folders">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
-            </button>
-
-            <!-- Text Message Input -->
-            <input type="text" id="chat-text-input" class="chat-textbox wa-textbox" placeholder="Type a message..." autocomplete="off">
-
-            <!-- Direct 1-tap Voice Note / Audio Record Button -->
-            <button type="button" class="btn-chat-icon btn-mic" id="btn-chat-mic" title="Record Voice Note">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>
-            </button>
-
-            <!-- Send Button -->
-            <button type="button" class="btn-chat-send wa-send-btn" id="btn-chat-send" title="Send Message">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
-            </button>
-          </div>
-        </div>
-
-        <!-- Room Ended Disconnection Banner -->
-        <div id="room-ended-modal" class="room-ended-modal" style="display: none;">
-          <div class="ended-card">
-            <div class="ended-icon">⚠️</div>
-            <h3>Room Session Terminated</h3>
-            <p id="room-ended-reason">The host or connected peer closed the tab. All transfer memory was securely cleared.</p>
-            <div style="display: flex; gap: 10px; justify-content: center; margin-top: 14px;">
-              <button type="button" class="btn-primary" id="btn-rejoin-new-room">Start / Join New Room</button>
-            </div>
-          </div>
-        </div>
-
-        <!-- Desktop Webcam Viewfinder Modal -->
-        <div id="webcam-modal" class="webcam-modal" style="display: none;">
-          <div class="webcam-card">
-            <div class="webcam-header">
-              <span class="webcam-title">📷 Take Photo</span>
-              <button type="button" class="webcam-close-btn" id="btn-close-webcam">&times;</button>
-            </div>
-            <div class="webcam-viewfinder-wrap">
-              <video id="webcam-video" autoplay playsinline muted></video>
-              <canvas id="webcam-canvas" style="display: none;"></canvas>
-            </div>
-            <div class="webcam-actions">
-              <button type="button" class="btn-webcam-cancel" id="btn-webcam-cancel">Cancel</button>
-              <button type="button" class="btn-webcam-snap" id="btn-webcam-snap">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="3" fill="currentColor"/></svg>
-                Snap &amp; Send
-              </button>
-            </div>
-          </div>
-        </div>
-
         <!-- Active Transfer Monitor -->
         <div id="active-transfer-card" class="active-transfer-container" style="display: none;">
           <div class="monitor-header">
@@ -765,6 +593,230 @@
     </div>
   </footer>
 
+<!-- =================================================================== -->
+        <!-- LIVE TWO-WAY P2P WHATSAPP-STYLE CHAT & FILE DROP ROOM               -->
+        <!-- =================================================================== -->
+        <div id="p2p-live-room" class="p2p-live-room whatsapp-chat-theme" style="display: none;">
+          <!-- WhatsApp Top Room Header -->
+          <div class="live-room-topbar wa-topbar">
+            <div class="peer-header-identity">
+              <button type="button" class="btn-leave-room-mobile" id="btn-leave-live-room-arrow" title="Back / Exit Room">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+              </button>
+              <div class="peer-avatar-circle" id="peer-avatar-circle">
+                <span id="peer-avatar-icon">📱</span>
+                <span class="live-status-dot"></span>
+              </div>
+              <div class="peer-header-details">
+                <div class="peer-header-name" id="live-peer-name">Connecting...</div>
+                <div class="peer-header-status" id="live-peer-status-text">online • Direct P2P Encrypted</div>
+              </div>
+            </div>
+
+            <div class="wa-topbar-actions">
+              <div class="room-identity-pill" id="live-room-badge" title="Tap to Copy Room Code">
+                <span id="live-room-code-tag" class="room-code-tag">LD-------</span>
+                <button type="button" class="btn-icon-copy" id="btn-live-copy-link" title="Copy Room Invite Link">
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+                </button>
+              </div>
+              <button type="button" class="btn-leave-room" id="btn-leave-live-room" title="Disconnect & Exit Room">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+                <span>Exit</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- Chat & File Stream Window -->
+          <div class="chat-feed-container wa-chat-wallpaper" id="chat-feed-container">
+            <div class="chat-feed wa-feed" id="chat-messages-feed">
+              <div class="chat-system-msg wa-system-pill">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+                <span>🔒 Messages, voice notes, photos &amp; files are end-to-end encrypted with zero server storage.</span>
+              </div>
+            </div>
+            
+            <!-- Live Inline File Drop Overlay for the chat feed -->
+            <div id="chat-drag-overlay" class="chat-drag-overlay" style="display: none;">
+              <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+              <span>Drop files here to send instantly</span>
+            </div>
+          </div>
+
+          <!-- Inline Active Transfer Progress (Floating inside chat) -->
+          <div id="live-transfer-bar" class="live-transfer-bar" style="display: none;">
+            <div class="transfer-info-mini">
+              <span id="live-transfer-label" class="transfer-label-mini">Transferring files...</span>
+              <span id="live-transfer-stats" class="transfer-stats-mini">0% · 0.0 MB/s</span>
+            </div>
+            <div class="transfer-track-mini">
+              <div id="live-transfer-fill" class="transfer-fill-mini" style="width: 0%;"></div>
+            </div>
+          </div>
+
+          <!-- WhatsApp Media Attachment Popup Menu -->
+          <div class="chat-attach-popup" id="chat-attach-popup" style="display: none;">
+            <button type="button" class="attach-popup-item" id="popup-item-camera" title="Take Photo with Camera">
+              <span class="popup-icon-wrap" style="background: linear-gradient(135deg, #ec4899, #f43f5e);">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+              </span>
+              <span>Camera</span>
+            </button>
+            <button type="button" class="attach-popup-item" id="popup-item-gallery" title="Choose Photos &amp; Videos from Device">
+              <span class="popup-icon-wrap" style="background: linear-gradient(135deg, #a855f7, #6366f1);">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+              </span>
+              <span>Photos</span>
+            </button>
+            <button type="button" class="attach-popup-item" id="popup-item-file" title="Choose Documents &amp; Files from Device">
+              <span class="popup-icon-wrap" style="background: linear-gradient(135deg, #0284c7, #2563eb);">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+              </span>
+              <span>Document</span>
+            </button>
+            <button type="button" class="attach-popup-item" id="popup-item-folder" title="Choose Folder from Device">
+              <span class="popup-icon-wrap" style="background: linear-gradient(135deg, #0d9488, #10b981);">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+              </span>
+              <span>Folder</span>
+            </button>
+          </div>
+
+          <!-- Active Voice Recording Bar (When mic is recording) -->
+          <div class="voice-recording-bar" id="live-voice-recorder-bar" style="display: none;">
+            <div class="recording-indicator">
+              <span class="rec-pulse-dot"></span>
+              <span class="rec-timer" id="voice-timer-text">0:00</span>
+            </div>
+            <div class="rec-status-msg">Recording Voice Note...</div>
+            <div class="rec-actions">
+              <button type="button" class="btn-rec-cancel" id="btn-cancel-voice" title="Discard Voice Note">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+              </button>
+              <button type="button" class="btn-rec-send" id="btn-send-voice" title="Send Voice Note">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+              </button>
+            </div>
+          </div>
+
+          <!-- WhatsApp Chat Input Bar -->
+          <div class="chat-input-bar wa-input-bar" id="chat-input-bar">
+            <!-- Hidden device input triggers -->
+            <input type="file" id="chat-camera-input" accept="image/*" capture="environment" style="display: none;">
+            <input type="file" id="chat-gallery-input" accept="image/*,video/*" multiple style="display: none;">
+            <input type="file" id="chat-file-input" multiple style="display: none;">
+            <input type="file" id="chat-folder-input" webkitdirectory directory multiple style="display: none;">
+
+            <!-- Direct 1-tap Camera Button -->
+            <button type="button" class="btn-chat-icon" id="btn-chat-camera" title="Take photo with camera">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+            </button>
+
+            <!-- Attachment Menu Button -->
+            <button type="button" class="btn-chat-icon" id="btn-chat-attach-menu" title="Attach photos, files, or folders">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
+            </button>
+
+            <!-- Text Message Input -->
+            <input type="text" id="chat-text-input" class="chat-textbox wa-textbox" placeholder="Type a message..." autocomplete="off">
+
+            <!-- Direct 1-tap Voice Note / Audio Record Button -->
+            <button type="button" class="btn-chat-icon btn-mic" id="btn-chat-mic" title="Record Voice Note">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>
+            </button>
+
+            <!-- Send Button -->
+            <button type="button" class="btn-chat-send wa-send-btn" id="btn-chat-send" title="Send Message">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+            </button>
+          </div>
+        </div>
+
+        <!-- Room Ended Disconnection Banner -->
+        <div id="room-ended-modal" class="room-ended-modal" style="display: none;">
+          <div class="ended-card">
+            <div class="ended-icon">⚠️</div>
+            <h3>Room Session Terminated</h3>
+            <p id="room-ended-reason">The host or connected peer closed the tab. All transfer memory was securely cleared.</p>
+            <div style="display: flex; gap: 10px; justify-content: center; margin-top: 14px;">
+              <button type="button" class="btn-primary" id="btn-rejoin-new-room">Start / Join New Room</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Desktop Webcam Viewfinder Modal -->
+        <div id="webcam-modal" class="webcam-modal" style="display: none;">
+          <div class="webcam-card">
+            <div class="webcam-header">
+              <span class="webcam-title">📷 Take Photo</span>
+              <button type="button" class="webcam-close-btn" id="btn-close-webcam">&times;</button>
+            </div>
+            <div class="webcam-viewfinder-wrap">
+              <video id="webcam-video" autoplay playsinline muted></video>
+              <canvas id="webcam-canvas" style="display: none;"></canvas>
+            </div>
+            <div class="webcam-actions">
+              <button type="button" class="btn-webcam-cancel" id="btn-webcam-cancel">Cancel</button>
+              <button type="button" class="btn-webcam-snap" id="btn-webcam-snap">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="3" fill="currentColor"/></svg>
+                Snap &amp; Send
+              </button>
+            </div>
+          </div>
+        </div>
+
+        
+  <!-- In-App Image / Photo Lightbox Preview Modal -->
+  <div id="image-lightbox-modal" class="image-lightbox-modal" style="display: none;">
+    <div class="lightbox-overlay" id="lightbox-backdrop"></div>
+    <div class="lightbox-container">
+      <div class="lightbox-header">
+        <div class="lightbox-file-info">
+          <span class="lightbox-filename" id="lightbox-filename">image.jpg</span>
+          <span class="lightbox-filesize" id="lightbox-filesize">2.4 MB</span>
+        </div>
+        <div class="lightbox-actions">
+          <a id="lightbox-download-btn" href="#" download="image.jpg" class="btn-lightbox-action" title="Download Image">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            <span>Save</span>
+          </a>
+          <button type="button" class="btn-lightbox-close" id="btn-close-lightbox" title="Close Preview">&times;</button>
+        </div>
+      </div>
+      <div class="lightbox-body" id="lightbox-body">
+        <img id="lightbox-img" src="" alt="Preview" class="lightbox-image" />
+      </div>
+    </div>
+  </div>
+
+  <!-- In-App PDF Document Viewer Modal -->
+  <div id="pdf-viewer-modal" class="pdf-viewer-modal" style="display: none;">
+    <div class="pdf-modal-backdrop" id="pdf-modal-backdrop"></div>
+    <div class="pdf-modal-card">
+      <div class="pdf-modal-header">
+        <div class="pdf-header-title-wrap">
+          <span class="pdf-header-badge">PDF</span>
+          <span class="pdf-header-filename" id="pdf-modal-filename">document.pdf</span>
+        </div>
+        <div class="pdf-header-actions">
+          <a id="pdf-modal-open-tab" href="#" target="_blank" class="btn-pdf-action" title="Open in New Tab">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+            <span>Open</span>
+          </a>
+          <a id="pdf-modal-download-btn" href="#" download="document.pdf" class="btn-pdf-action" title="Download PDF">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            <span>Save</span>
+          </a>
+          <button type="button" class="btn-pdf-close" id="btn-close-pdf-modal">&times;</button>
+        </div>
+      </div>
+      <div class="pdf-modal-body">
+        <iframe id="pdf-viewer-frame" src="" title="PDF Viewer" allowfullscreen></iframe>
+      </div>
+    </div>
+  </div>
+
+
   <!-- Real-Time Connection Diagnostics Modal -->
   <div class="diagnostics-modal-backdrop" id="connection-diagnostics-modal" style="display: none;">
     <div class="diagnostics-modal-content">
@@ -821,9 +873,9 @@
   </div>
 
   <!-- Scripts (Versioned for Instant Cache Busting) -->
-  <script src="./mqtt.min.js?v=3.0.0"></script>
+  <script src="./mqtt.min.js?v=3.1.0"></script>
   <script src="./peerjs.min.js?v=2.6.0"></script>
   <script src="./qrcode.min.js?v=2.7.4"></script>
-  <script src="./app.js?v=3.0.0"></script>
+  <script src="./app.js?v=3.1.0"></script>
 </body>
 </html>
