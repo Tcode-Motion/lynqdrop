@@ -2238,166 +2238,191 @@ footer.site-footer {
   margin-bottom: 12px;
 }
 
-@media (max-width: 768px) {
-  body.in-live-room {
-    overflow: hidden !important;
-    width: 100% !important;
-    height: 100% !important;
-    height: 100dvh !important;
-    margin: 0 !important;
-    padding: 0 !important;
-  }
-  body.in-live-room .site-header,
-  body.in-live-room header,
-  body.in-live-room footer,
-  body.in-live-room .hero-banner,
-  body.in-live-room .features-section,
-  body.in-live-room .tech-specs,
-  body.in-live-room .brand-header,
-  body.in-live-room .subview-bar,
-  body.in-live-room #subview-card-send,
-  body.in-live-room #subview-card-receive,
-  body.in-live-room #subview-card-text {
+body.in-live-room {
+  overflow: hidden !important;
+  width: 100vw !important;
+  height: 100dvh !important;
+  height: 100vh !important;
+  margin: 0 !important;
+  padding: 0 !important;
+}
+
+body.in-live-room .site-header,
+body.in-live-room header,
+body.in-live-room footer,
+body.in-live-room .site-footer,
+body.in-live-room .hero-banner,
+body.in-live-room .features-section,
+body.in-live-room .architecture-section,
+body.in-live-room .downloads-section,
+body.in-live-room .faq-section,
+body.in-live-room .tech-specs,
+body.in-live-room .brand-header,
+body.in-live-room .subview-bar,
+body.in-live-room #subview-card-send,
+body.in-live-room #subview-card-receive,
+body.in-live-room #subview-card-text {
+  display: none !important;
+}
+
+body.in-live-room .sharing-hub {
+  margin: 0 !important;
+  padding: 0 !important;
+  max-width: 100vw !important;
+  width: 100vw !important;
+  height: 100dvh !important;
+  border: none !important;
+  box-shadow: none !important;
+  background: transparent !important;
+}
+
+body.in-live-room #p2p-live-room {
+  position: fixed !important;
+  top: 0 !important;
+  left: 0 !important;
+  right: 0 !important;
+  bottom: 0 !important;
+  width: 100vw !important;
+  height: 100dvh !important;
+  height: 100vh !important;
+  max-width: 100vw !important;
+  max-height: 100dvh !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  border: none !important;
+  border-radius: 0 !important;
+  z-index: 9999999 !important;
+  display: flex !important;
+  flex-direction: column !important;
+  background: #0b141a !important;
+  box-shadow: none !important;
+}
+
+body.in-live-room .live-room-topbar,
+body.in-live-room .wa-topbar {
+  position: sticky !important;
+  top: 0 !important;
+  left: 0 !important;
+  right: 0 !important;
+  height: 56px !important;
+  min-height: 56px !important;
+  padding: 0 10px !important;
+  padding-top: env(safe-area-inset-top, 0px) !important;
+  background: #202c33 !important;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08) !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  z-index: 100 !important;
+  flex-shrink: 0 !important;
+  gap: 8px !important;
+  box-sizing: content-box !important;
+}
+
+body.in-live-room .peer-header-identity {
+  display: flex !important;
+  align-items: center !important;
+  gap: 8px !important;
+  flex: 1 !important;
+  min-width: 0 !important;
+}
+
+body.in-live-room .peer-header-details {
+  display: flex !important;
+  flex-direction: column !important;
+  min-width: 0 !important;
+  flex: 1 !important;
+}
+
+body.in-live-room .peer-header-name {
+  font-size: 0.95rem !important;
+  font-weight: 600 !important;
+  color: #e9edef !important;
+  white-space: nowrap !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  max-width: 140px !important;
+}
+
+body.in-live-room .peer-header-status {
+  font-size: 0.72rem !important;
+  color: #8696a0 !important;
+  white-space: nowrap !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  max-width: 150px !important;
+}
+
+body.in-live-room .wa-topbar-actions {
+  display: flex !important;
+  align-items: center !important;
+  gap: 6px !important;
+  flex-shrink: 0 !important;
+}
+
+body.in-live-room .room-identity-pill {
+  padding: 4px 8px !important;
+  font-size: 0.75rem !important;
+  border-radius: 12px !important;
+  background: rgba(56, 189, 248, 0.12) !important;
+  border: 1px solid rgba(56, 189, 248, 0.3) !important;
+  color: #38bdf8 !important;
+  font-weight: 700 !important;
+  white-space: nowrap !important;
+  cursor: pointer !important;
+}
+
+body.in-live-room .chat-feed-container {
+  flex: 1 1 0% !important;
+  min-height: 0 !important;
+  height: auto !important;
+  overflow: hidden !important;
+  display: flex !important;
+  flex-direction: column !important;
+  position: relative !important;
+  padding: 0 !important;
+  background: #0b141a !important;
+}
+
+body.in-live-room .chat-feed {
+  flex: 1 1 0% !important;
+  min-height: 0 !important;
+  overflow-y: auto !important;
+  overflow-x: hidden !important;
+  -webkit-overflow-scrolling: touch !important;
+  overscroll-behavior-y: contain !important;
+  touch-action: pan-y !important;
+  padding: 12px 10px !important;
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 8px !important;
+}
+
+body.in-live-room .chat-input-bar {
+  flex-shrink: 0 !important;
+  position: sticky !important;
+  bottom: 0 !important;
+  left: 0 !important;
+  right: 0 !important;
+  padding: 8px 8px !important;
+  padding-bottom: max(8px, env(safe-area-inset-bottom, 8px)) !important;
+  background: #202c33 !important;
+  border-top: 1px solid rgba(255, 255, 255, 0.06) !important;
+  min-height: 52px !important;
+  gap: 6px !important;
+  display: flex !important;
+  align-items: center !important;
+  z-index: 100 !important;
+}
+
+@media (max-width: 640px) {
+  body.in-live-room .btn-leave-room {
     display: none !important;
   }
-  body.in-live-room .sharing-hub {
-    margin: 0 !important;
-    padding: 0 !important;
-    max-width: 100vw !important;
-    width: 100vw !important;
-    height: 100dvh !important;
-    border: none !important;
-    box-shadow: none !important;
-    background: transparent !important;
-  }
-  .p2p-live-room {
-    position: fixed !important;
-    top: 0 !important;
-    left: 0 !important;
-    right: 0 !important;
-    bottom: 0 !important;
-    width: 100% !important;
-    height: 100% !important;
-    height: 100dvh !important;
-    max-height: 100dvh !important;
-    margin: 0 !important;
-    padding: 0 !important;
-    border: none !important;
-    border-radius: 0 !important;
-    z-index: 999999 !important;
-    display: flex !important;
-    flex-direction: column !important;
-    box-shadow: none !important;
-  }
-  .live-room-topbar,
-  .wa-topbar {
-    height: 56px !important;
-    min-height: 56px !important;
-    padding: 0 10px !important;
-    padding-top: env(safe-area-inset-top, 0px) !important;
-    box-sizing: content-box !important;
-    gap: 8px !important;
-  }
-  .peer-header-identity {
-    gap: 8px !important;
-    flex: 1 !important;
-    min-width: 0 !important;
-  }
-  .peer-header-details {
-    min-width: 0 !important;
-    flex: 1 !important;
-  }
-  .peer-header-name {
-    font-size: 0.92rem !important;
-    max-width: 120px !important;
-    white-space: nowrap !important;
-    overflow: hidden !important;
-    text-overflow: ellipsis !important;
-  }
-  .peer-header-status {
-    font-size: 0.7rem !important;
-    max-width: 130px !important;
-    white-space: nowrap !important;
-    overflow: hidden !important;
-    text-overflow: ellipsis !important;
-  }
-  .wa-topbar-actions {
-    gap: 6px !important;
-    flex-shrink: 0 !important;
-  }
-  .room-identity-pill {
-    padding: 4px 8px !important;
-    font-size: 0.72rem !important;
-    border-radius: 12px !important;
-  }
-  .btn-leave-room {
-    display: none !important;
-  }
-  .chat-feed-container {
-    flex: 1 1 0% !important;
-    min-height: 0 !important;
-    height: auto !important;
-    overflow: hidden !important;
-    display: flex !important;
-    flex-direction: column !important;
-    position: relative !important;
-    padding: 0 !important;
-  }
-  .chat-feed {
-    flex: 1 1 0% !important;
-    min-height: 0 !important;
-    overflow-y: auto !important;
-    overflow-x: hidden !important;
-    -webkit-overflow-scrolling: touch !important;
-    overscroll-behavior-y: contain !important;
-    touch-action: pan-y !important;
-    padding: 10px 10px !important;
-    display: flex !important;
-    flex-direction: column !important;
-    gap: 8px !important;
-  }
-  .chat-input-bar {
-    padding: 8px 8px !important;
-    padding-bottom: max(8px, env(safe-area-inset-bottom, 8px)) !important;
-    background: #202c33 !important;
-    min-height: 52px !important;
-    gap: 6px !important;
-    flex-shrink: 0 !important;
-  }
-  .chat-text-textbox {
-    font-size: 15px !important;
-    padding: 8px 12px !important;
-  }
-  .btn-chat-action {
-    width: 38px !important;
-    height: 38px !important;
-  }
-  .chat-bubble {
-    max-width: 86% !important;
-  }
 }
 
-.btn-leave-room-mobile {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  background: none;
-  border: none;
-  color: #aebac1;
-  padding: 6px 4px;
-  cursor: pointer;
-  border-radius: 50%;
-  margin-right: 2px;
-}
-
-.btn-leave-room-mobile:hover,
-.btn-leave-room-mobile:active {
-  background: rgba(255, 255, 255, 0.1);
-  color: #e9edef;
-}
-
-@media (min-width: 769px) {
-  .btn-leave-room-mobile {
+@media (min-width: 641px) {
+  body.in-live-room .btn-leave-room-mobile {
     display: none !important;
   }
 }

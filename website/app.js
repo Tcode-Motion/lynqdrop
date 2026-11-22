@@ -350,6 +350,7 @@ document.addEventListener('DOMContentLoaded', () => {
   function openLiveRoom(code, isHost) {
     liveRoomOpen = true;
     currentRoomCode = code;
+    try { window.scrollTo(0, 0); } catch (_) {}
     document.body.classList.add('in-live-room');
 
     // Transition out lobby views
